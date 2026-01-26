@@ -1,0 +1,8 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Du kan lägga till egen CSS här under om du vill senare */
+body {
+  background-color: #f8fafc;
+}
