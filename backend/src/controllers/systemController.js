@@ -31,7 +31,8 @@ export const getSystemById = async (req, res) => {
         // Vi vill ha med punkterna direkt
         points: {
           orderBy: { createdAt: 'desc' }
-        }
+        },
+        meetings: { orderBy: { date: 'desc' } }
       }
     });
     

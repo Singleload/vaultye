@@ -5,6 +5,7 @@ import dotenv from 'dotenv';
 import morgan from 'morgan';
 import systemRoutes from './routes/systemRoutes.js';
 import pointRoutes from './routes/pointRoutes.js';
+import meetingRoutes from './routes/meetingRoutes.js';
 
 dotenv.config();
 
@@ -18,6 +19,7 @@ app.use(morgan('dev'));
 // Routes
 app.use('/api/systems', systemRoutes);
 app.use('/api/points', pointRoutes);
+app.use('/api/meetings', meetingRoutes);
 
 app.get('/', (req, res) => {
   res.send('Waulty Backend is running 🚀');

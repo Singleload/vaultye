@@ -4,7 +4,7 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 export const createPoint = async (req, res) => {
-  const { title, description, origin, priority, systemId } = req.body;
+  const { title, description, origin, priority, systemId, meetingId } = req.body;
   try {
     const newPoint = await prisma.point.create({
       data: {
@@ -13,7 +13,8 @@ export const createPoint = async (req, res) => {
         origin,
         priority,
         systemId,
-        status: 'NEW'
+        status: 'NEW',
+        meetingId
       }
     });
     res.status(201).json(newPoint);

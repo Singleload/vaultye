@@ -4,6 +4,7 @@ import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
 import Systems from './pages/Systems';
 import SystemDetail from './pages/SystemDetail';
+import MeetingRoom from './pages/MeetingRoom';
 
 // Placeholder för andra sidor
 const Placeholder = ({ title }) => (
@@ -23,6 +24,7 @@ function App() {
           {/* Nya routes för system */}
           <Route path="/systems" element={<Systems />} />
           <Route path="/systems/:id" element={<SystemDetail />} />
+          <Route path="/systems/:id/meeting/:meetingId" element={<MeetingRoom />} />
           
           <Route path="/meetings" element={<Placeholder title="Mötesrummet" />} />
           <Route path="/upgrades" element={<Placeholder title="Uppgraderingar" />} />

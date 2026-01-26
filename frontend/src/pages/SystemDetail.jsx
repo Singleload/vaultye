@@ -1,13 +1,16 @@
+// frontend/src/pages/SystemDetail.jsx
 import { useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ArrowLeft, Settings, FileText, CheckCircle2, 
-  AlertCircle, Plus, X, Loader2, User 
+  AlertCircle, Plus, X, Loader2, User, Calendar, Play, ChevronRight 
 } from 'lucide-react';
 import clsx from 'clsx';
+
+// Importera din Drawer-komponent
 import PointDrawer from '../components/PointDrawer';
 
 // --- API Helpers ---
@@ -21,7 +24,12 @@ const createPoint = async (data) => {
   return res.data;
 };
 
-// --- Components ---
+const createMeetingApi = async (data) => {
+  const res = await axios.post('http://localhost:3000/api/meetings', data);
+  return res.data;
+};
+
+// --- Sub-komponenter ---
 const TabButton = ({ active, onClick, children, icon: Icon }) => (
   <button
     onClick={onClick}
@@ -60,23 +68,36 @@ const StatusDot = ({ status }) => {
 
 export default function SystemDetail() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
+  
+  // State
   const [activeTab, setActiveTab] = useState('needs');
   const [isPointModalOpen, setIsPointModalOpen] = useState(false);
-  const [selectedPoint, setSelectedPoint] = useState(null);
+  const [selectedPoint, setSelectedPoint] = useState(null); // För Drawer
 
-  // 1. Hämta System och dess Points
+  // 1. Hämta System (inkl punkter och möten)
   const { data: system, isLoading, isError } = useQuery({
     queryKey: ['system', id],
     queryFn: () => fetchSystemDetails(id)
   });
 
-  // 2. Mutation för att skapa Punkt
+  // 2. Mutation för att skapa Punkt (Manuellt)
   const pointMutation = useMutation({
     mutationFn: createPoint,
     onSuccess: () => {
       queryClient.invalidateQueries(['system', id]);
       setIsPointModalOpen(false);
+    }
+  });
+
+  // 3. Mutation för att skapa Möte
+  const meetingMutation = useMutation({
+    mutationFn: createMeetingApi,
+    onSuccess: (data) => {
+      queryClient.invalidateQueries(['system', id]);
+      // Navigera direkt till det nya mötesrummet
+      navigate(`/systems/${id}/meeting/${data.id}`);
     }
   });
 
@@ -92,8 +113,16 @@ export default function SystemDetail() {
     });
   };
 
+  const handleStartMeeting = () => {
+    meetingMutation.mutate({
+      title: 'Förvaltningsmöte', // Detta kan göras dynamiskt senare
+      date: new Date(),
+      systemId: id
+    });
+  };
+
   if (isLoading) return <div className="flex justify-center p-20"><Loader2 className="animate-spin text-indigo-600" size={32} /></div>;
-  if (isError) return <div className="p-10 text-red-500">Kunde inte hitta systemet.</div>;
+  if (isError) return <div className="p-10 text-red-500">Kunde inte hitta systemet. Är backend igång?</div>;
 
   return (
     <div className="space-y-6 relative">
@@ -119,9 +148,13 @@ export default function SystemDetail() {
 
       {/* Main Content Area */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden min-h-[600px] flex flex-col">
-        <div className="flex border-b border-slate-100">
+        {/* Tabs */}
+        <div className="flex border-b border-slate-100 bg-white">
           <TabButton active={activeTab === 'overview'} onClick={() => setActiveTab('overview')} icon={FileText}>
             Översikt
+          </TabButton>
+          <TabButton active={activeTab === 'meetings'} onClick={() => setActiveTab('meetings')} icon={Calendar}>
+            Möten
           </TabButton>
           <TabButton active={activeTab === 'needs'} onClick={() => setActiveTab('needs')} icon={AlertCircle}>
             Behov & Förslag 
@@ -136,7 +169,7 @@ export default function SystemDetail() {
 
         <div className="p-6 flex-1 bg-slate-50/30">
           
-          {/* OVERVIEW TAB */}
+          {/* --- TAB: OVERVIEW --- */}
           {activeTab === 'overview' && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6 max-w-2xl">
               <div className="bg-white p-6 rounded-xl border border-slate-100 shadow-sm">
@@ -158,7 +191,59 @@ export default function SystemDetail() {
             </motion.div>
           )}
 
-          {/* NEEDS (POINTS) TAB */}
+          {/* --- TAB: MEETINGS --- */}
+          {activeTab === 'meetings' && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+              <div className="flex justify-between items-center mb-6">
+                <div>
+                  <h3 className="font-bold text-slate-800 text-lg">Möteshistorik</h3>
+                  <p className="text-sm text-slate-500">Hantera resursgruppsmöten och protokoll.</p>
+                </div>
+                <button 
+                  onClick={handleStartMeeting}
+                  disabled={meetingMutation.isPending}
+                  className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 shadow-sm transition-all active:scale-95 disabled:opacity-70"
+                >
+                  {meetingMutation.isPending ? <Loader2 className="animate-spin" size={16} /> : <Play size={16} />}
+                  Starta nytt möte nu
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                {(!system.meetings || system.meetings.length === 0) ? (
+                  <div className="text-center py-10 bg-white rounded-xl border border-dashed border-slate-200">
+                    <Calendar className="mx-auto text-slate-300 mb-2" size={32} />
+                    <p className="text-slate-500 italic">Inga möten registrerade än.</p>
+                  </div>
+                ) : (
+                  system.meetings.map((meeting) => (
+                    <div 
+                      key={meeting.id} 
+                      onClick={() => navigate(`/systems/${id}/meeting/${meeting.id}`)}
+                      className="bg-white p-4 rounded-xl border border-slate-200 hover:border-indigo-300 hover:shadow-md transition-all cursor-pointer flex justify-between items-center group"
+                    >
+                      <div className="flex items-center gap-4">
+                         <div className="w-10 h-10 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold text-sm">
+                           {new Date(meeting.date).getDate()}
+                         </div>
+                         <div>
+                           <h4 className="font-semibold text-slate-800 group-hover:text-indigo-700 transition-colors">{meeting.title}</h4>
+                           <p className="text-sm text-slate-500">
+                             {new Date(meeting.date).toLocaleDateString('sv-SE', { month: 'long', year: 'numeric' })}
+                           </p>
+                         </div>
+                      </div>
+                      <div className="text-slate-400 group-hover:text-indigo-400 transition-colors">
+                        <ChevronRight size={20} />
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </motion.div>
+          )}
+
+          {/* --- TAB: NEEDS (POINTS) --- */}
           {activeTab === 'needs' && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
               <div className="flex justify-between items-center mb-6">
@@ -168,10 +253,10 @@ export default function SystemDetail() {
                 </div>
                 <button 
                   onClick={() => setIsPointModalOpen(true)}
-                  className="flex items-center gap-2 text-sm bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 shadow-sm hover:shadow transition-all active:scale-95"
+                  className="flex items-center gap-2 text-sm bg-white border border-slate-300 text-slate-700 px-4 py-2 rounded-lg hover:bg-slate-50 hover:border-slate-400 transition-all shadow-sm"
                 >
                   <Plus size={16} />
-                  Registrera behov
+                  Registrera manuellt
                 </button>
               </div>
 
@@ -181,13 +266,14 @@ export default function SystemDetail() {
                     <AlertCircle size={24} />
                   </div>
                   <h4 className="text-slate-900 font-medium">Inga punkter än</h4>
-                  <p className="text-slate-500 text-sm mt-1">Allt verkar lugnt! Klicka på knappen för att lägga till.</p>
+                  <p className="text-slate-500 text-sm mt-1">Allt verkar lugnt! Skapa ett möte eller registrera manuellt.</p>
                 </div>
               ) : (
                 <div className="space-y-3">
                   {system.points?.map((item) => (
                     <div 
-                      key={item.id} onClick={() => setSelectedPoint(item)}
+                      key={item.id} 
+                      onClick={() => setSelectedPoint(item)}
                       className="bg-white p-4 rounded-xl border border-slate-200 hover:border-indigo-300 hover:shadow-md transition-all cursor-pointer group"
                     >
                       <div className="flex items-center justify-between">
@@ -204,8 +290,14 @@ export default function SystemDetail() {
                         </div>
                         <div className="flex items-center gap-4">
                           <PriorityBadge level={item.priority} />
-                          <div className="text-xs font-medium px-3 py-1 bg-slate-100 rounded text-slate-600 uppercase tracking-wide">
-                            {item.status === 'NEW' ? 'Ny' : item.status}
+                          <div className={clsx(
+                            "text-xs font-medium px-3 py-1 rounded uppercase tracking-wide",
+                            item.status === 'RECOMMENDED' ? "bg-amber-100 text-amber-800" :
+                            item.status === 'APPROVED' ? "bg-emerald-100 text-emerald-800" :
+                            "bg-slate-100 text-slate-600"
+                          )}>
+                            {item.status === 'NEW' ? 'Ny' : 
+                             item.status === 'RECOMMENDED' ? 'Rekommenderad' : item.status}
                           </div>
                         </div>
                       </div>
@@ -215,10 +307,18 @@ export default function SystemDetail() {
               )}
             </motion.div>
           )}
+
+          {/* --- TAB: ACTIONS --- */}
+          {activeTab === 'actions' && (
+             <div className="p-10 text-center text-slate-400">
+               <p>Här kommer godkända åtgärder visas.</p>
+             </div>
+          )}
+
         </div>
       </div>
 
-      {/* MODAL: CREATE POINT */}
+      {/* --- MODAL: CREATE POINT --- */}
       <AnimatePresence>
         {isPointModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -281,12 +381,13 @@ export default function SystemDetail() {
           </div>
         )}
       </AnimatePresence>
-      {/* Drawer för att hantera punkter */}
-  <PointDrawer 
-    point={selectedPoint} 
-    isOpen={!!selectedPoint} 
-    onClose={() => setSelectedPoint(null)} 
-  />
+
+      {/* --- DRAWER: POINT ANALYSIS --- */}
+      <PointDrawer 
+        point={selectedPoint} 
+        isOpen={!!selectedPoint} 
+        onClose={() => setSelectedPoint(null)} 
+      />
     </div>
   );
 }
