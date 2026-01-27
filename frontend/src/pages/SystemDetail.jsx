@@ -461,9 +461,43 @@ export default function SystemDetail() {
 
           {/* --- TAB: ACTIONS --- */}
           {activeTab === 'actions' && (
-            <div className="p-10 text-center text-slate-400">
-              <p>Här kommer godkända åtgärder visas.</p>
-            </div>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+              <h3 className="font-bold text-slate-800 text-lg mb-6">Åtgärdsplan</h3>
+
+              <div className="space-y-3">
+                {/* Filtrera ut punkter som har en action */}
+                {system.points?.filter(p => p.action).length === 0 ? (
+                  <p className="text-slate-500 italic">Inga aktiva åtgärder just nu.</p>
+                ) : (
+                  system.points?.filter(p => p.action).map(point => {
+                    const action = point.action;
+                    const isOverdue = new Date(action.dueDate) < new Date() && action.status !== 'DONE';
+
+                    return (
+                      <div key={action.id} className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex justify-between items-center">
+                        <div>
+                          <h4 className="font-bold text-slate-800">{action.title}</h4>
+                          <div className="flex items-center gap-4 text-sm text-slate-500 mt-1">
+                            <span className="flex items-center gap-1"><User size={14} /> {action.assignedTo}</span>
+                            <span className={`flex items-center gap-1 ${isOverdue ? 'text-red-600 font-bold' : ''}`}>
+                              <Calendar size={14} /> {new Date(action.dueDate).toLocaleDateString()}
+                            </span>
+                          </div>
+                        </div>
+                        <div>
+                          <span className={`px-3 py-1 rounded-full text-xs font-bold border ${action.status === 'DONE' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' :
+                            action.status === 'IN_PROGRESS' ? 'bg-blue-100 text-blue-700 border-blue-200' :
+                              'bg-slate-100 text-slate-600 border-slate-200'
+                            }`}>
+                            {action.status === 'DONE' ? 'Klar' : action.status === 'IN_PROGRESS' ? 'Pågående' : action.status}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </motion.div>
           )}
 
         </div>

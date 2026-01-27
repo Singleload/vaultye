@@ -1,12 +1,15 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Save, AlertTriangle, CheckCircle, TrendingUp, DollarSign, Loader2, Trash2, Send } from 'lucide-react';
+import { X, Save, AlertTriangle, CheckCircle, TrendingUp, DollarSign, Loader2, Trash2, Send, Calendar, User, PlayCircle } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
 import clsx from 'clsx';
 
-const sendDecisionRequestApi = async ({ pointId, systemId }) => {
-  const res = await axios.post('http://localhost:3000/api/decisions/request', { pointId, systemId });
+const sendDecisionRequestApi = async (id) => {
+  const res = await axios.post(
+    'http://localhost:3000/api/decisions/request',
+    { id, type: 'POINT' }
+  );
   return res.data;
 };
 
@@ -20,11 +23,17 @@ const updatePointApi = async ({ id, data }) => {
   return res.data;
 };
 
+const createActionApi = async (data) => {
+  await axios.post('http://localhost:3000/api/actions', data);
+};
+
 export default function PointDrawer({ point, isOpen, onClose }) {
   const queryClient = useQueryClient();
 
   // Lokalt state för formuläret
   const [formData, setFormData] = useState({});
+
+  const [decisionLink, setDecisionLink] = useState(null);
 
   // Fyll formuläret när en ny point öppnas
   useEffect(() => {
@@ -71,21 +80,40 @@ export default function PointDrawer({ point, isOpen, onClose }) {
     }
   };
 
+  const createActionMutation = useMutation({
+    mutationFn: createActionApi,
+    onSuccess: () => {
+      queryClient.invalidateQueries(['system']);
+      onClose();
+    }
+  });
+
+  const handleCreateAction = (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    createActionMutation.mutate({
+      pointId: point.id,
+      title: point.title, // Vi ärver titeln som default
+      assignedTo: fd.get('assignedTo'),
+      startDate: fd.get('startDate'),
+      dueDate: fd.get('dueDate')
+    });
+  };
+
   const [isConfirmingSend, setIsConfirmingSend] = useState(false); // För confirmation dialog
 
   const sendDecisionMutation = useMutation({
     mutationFn: sendDecisionRequestApi,
     onSuccess: (data) => {
-      alert(`📧 SIMULERAT MAIL: Länk skickad!\n\n(I verkligheten hade systemägaren fått detta mail nu).\n\nLänk för testning: ${data.link}`);
+      setDecisionLink(data.link);
       queryClient.invalidateQueries(['system']);
       setIsConfirmingSend(false);
-      onClose();
     }
   });
 
   const handleSendRequest = () => {
     // Trigga mutationen
-    sendDecisionMutation.mutate({ pointId: point.id, systemId: point.systemId });
+    sendDecisionMutation.mutate(point.id);
   };
 
   return (
@@ -252,7 +280,90 @@ export default function PointDrawer({ point, isOpen, onClose }) {
 
             </div>
 
+            {point.status === 'APPROVED' && !point.action && (
+              <div className="bg-emerald-50 p-6 rounded-xl border border-emerald-100 mt-6">
+                <h3 className="text-lg font-bold text-emerald-900 mb-4 flex items-center gap-2">
+                  <CheckCircle className="text-emerald-600" /> Beslut Godkänt! Planera Åtgärd
+                </h3>
+
+                <form onSubmit={handleCreateAction} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-emerald-800 mb-1">Tilldela till (Ansvarig)</label>
+                    <div className="relative">
+                      <User size={16} className="absolute left-3 top-3 text-emerald-600" />
+                      <input name="assignedTo" required className="w-full pl-10 p-2 rounded-lg border border-emerald-200 focus:ring-2 focus:ring-emerald-500 outline-none" placeholder="Namn på ansvarig" />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-emerald-800 mb-1">Startdatum</label>
+                      <input name="startDate" type="date" required className="w-full p-2 rounded-lg border border-emerald-200 focus:ring-2 focus:ring-emerald-500" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-emerald-800 mb-1">Slutdatum</label>
+                      <input name="dueDate" type="date" required className="w-full p-2 rounded-lg border border-emerald-200 focus:ring-2 focus:ring-emerald-500" />
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={createActionMutation.isPending}
+                    className="w-full py-3 bg-emerald-600 text-white font-bold rounded-lg hover:bg-emerald-700 shadow-md transition-all flex justify-center items-center gap-2"
+                  >
+                    {createActionMutation.isPending ? <Loader2 className="animate-spin" /> : <PlayCircle size={20} />}
+                    Skapa Åtgärd & Starta
+                  </button>
+                </form>
+              </div>
+            )}
+
+            {/* Om Action redan finns */}
+            {point.action && (
+              <div className="bg-slate-100 p-6 rounded-xl border border-slate-200 mt-6">
+                <h3 className="font-bold text-slate-700 mb-2">Pågående Åtgärd</h3>
+                <p className="text-sm text-slate-600">Ansvarig: {point.action.assignedTo}</p>
+                <p className="text-sm text-slate-600">Deadline: {new Date(point.action.dueDate).toLocaleDateString()}</p>
+                <div className="mt-3 inline-block px-3 py-1 bg-white rounded border border-slate-300 text-xs font-bold">
+                  Status: {point.action.status}
+                </div>
+              </div>
+            )}
+
             {/* Footer */}
+            {decisionLink && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex items-start gap-3"
+              >
+                <CheckCircle className="text-emerald-600 mt-0.5" size={20} />
+
+                <div className="flex-1">
+                  <p className="text-sm font-bold text-emerald-800">
+                    Beslutsförfrågan skickad
+                  </p>
+                  <p className="text-xs text-emerald-700 mb-2">
+                    Kopiera länken nedan för test eller felsökning
+                  </p>
+
+                  <div className="flex items-center gap-2">
+                    <input
+                      readOnly
+                      value={decisionLink}
+                      className="flex-1 px-3 py-1.5 text-xs rounded-lg border border-emerald-300 bg-white font-mono"
+                    />
+                    <button
+                      onClick={() => navigator.clipboard.writeText(decisionLink)}
+                      className="px-3 py-1.5 text-xs font-bold bg-emerald-600 text-white rounded-lg hover:bg-emerald-700"
+                    >
+                      Kopiera
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
             <div className="p-6 border-t border-slate-100 bg-white flex justify-between items-center">
               {isConfirmingSend ? (
                 <motion.div

@@ -28,7 +28,7 @@ export const getSystemById = async (req, res) => {
     const system = await prisma.systemObject.findUnique({
       where: { id },
       include: {
-        points: { orderBy: { createdAt: 'desc' } },
+        points: { orderBy: { createdAt: 'desc' }, include: { action: true } },
         meetings: { orderBy: { date: 'desc' } },
         upgrades: { orderBy: { plannedDate: 'desc' } }
       }

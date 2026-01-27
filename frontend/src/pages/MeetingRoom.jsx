@@ -4,7 +4,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
 import {
   ArrowLeft, Save, Plus, Users, FileText,
-  Calendar, Loader2, CheckCircle2, Trash2
+  Calendar, Loader2, CheckCircle2, Trash2,
+  ListTodo, CheckSquare
 } from 'lucide-react';
 import Layout from '../components/Layout'; // <--- Vi använder nu Layouten
 
@@ -24,6 +25,14 @@ const createPointApi = async (data) => {
 
 const deleteMeetingApi = async (id) => {
   await axios.delete(`http://localhost:3000/api/meetings/${id}`);
+};
+
+const fetchSystemActions = async (systemId) => {
+  const res = await axios.get(`http://localhost:3000/api/actions/system/${systemId}`);
+  return res.data;
+};
+const updateActionApi = async ({ id, status }) => {
+  await axios.patch(`http://localhost:3000/api/actions/${id}`, { status });
 };
 
 export default function MeetingRoom() {
@@ -83,6 +92,20 @@ export default function MeetingRoom() {
       meetingId: meeting.id
     });
   };
+
+  const [sidebarTab, setSidebarTab] = useState('new'); // 'new' | 'followup'
+
+  // Hämta actions
+  const { data: actions, refetch: refetchActions } = useQuery({
+    queryKey: ['actions', meeting?.systemId],
+    queryFn: () => fetchSystemActions(meeting.systemId),
+    enabled: !!meeting?.systemId // Kör bara när vi vet systemId
+  });
+
+  const updateActionMutation = useMutation({
+    mutationFn: updateActionApi,
+    onSuccess: () => refetchActions()
+  });
 
   const deleteMutation = useMutation({
     mutationFn: deleteMeetingApi,
@@ -186,60 +209,170 @@ export default function MeetingRoom() {
         </div>
 
         {/* Right Column: Quick Actions & Points */}
-        <div className="w-96 flex flex-col gap-6 min-h-0">
+        <div className="w-96 flex flex-col min-h-0 border-l border-slate-200 bg-white">
 
-          {/* Quick Add Card */}
-          <div className="bg-slate-800 text-white p-6 rounded-2xl shadow-lg shrink-0">
-            <h3 className="font-bold mb-1">Registrera ny punkt</h3>
-            <p className="text-slate-400 text-sm mb-4">Fånga upp frågor och förslag direkt.</p>
+          {/* Sidebar Tabs */}
+          <div className="flex border-b border-slate-200 shrink-0">
+            <button
+              onClick={() => setSidebarTab('new')}
+              className={`flex-1 py-3 text-sm font-bold transition-colors ${sidebarTab === 'new'
+                  ? 'text-indigo-600 border-b-2 border-indigo-600'
+                  : 'text-slate-500 hover:text-slate-800'
+                }`}
+            >
+              <div className="flex items-center justify-center gap-2">
+                <Plus size={16} /> Nytt
+              </div>
+            </button>
 
-            <form onSubmit={handleQuickAddPoint} className="relative">
-              <input
-                autoFocus
-                type="text"
-                value={newPointTitle}
-                onChange={(e) => setNewPointTitle(e.target.value)}
-                placeholder="Vad gäller saken?"
-                className="w-full pl-4 pr-10 py-3 rounded-xl bg-slate-700 border border-slate-600 focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400 outline-none placeholder:text-slate-500 text-white"
-              />
-              <button
-                type="submit"
-                disabled={!newPointTitle.trim() || pointMutation.isPending}
-                className="absolute right-2 top-2 p-1.5 bg-indigo-500 hover:bg-indigo-400 rounded-lg transition-colors text-white disabled:opacity-50"
-              >
-                {pointMutation.isPending ? <Loader2 className="animate-spin" size={16} /> : <Plus size={18} />}
-              </button>
-            </form>
+            <button
+              onClick={() => setSidebarTab('followup')}
+              className={`flex-1 py-3 text-sm font-bold transition-colors ${sidebarTab === 'followup'
+                  ? 'text-indigo-600 border-b-2 border-indigo-600'
+                  : 'text-slate-500 hover:text-slate-800'
+                }`}
+            >
+              <div className="flex items-center justify-center gap-2">
+                <ListTodo size={16} />
+                Uppföljning
+                {actions?.length > 0 && (
+                  <span className="bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded-full text-[10px]">
+                    {actions.length}
+                  </span>
+                )}
+              </div>
+            </button>
           </div>
 
-          {/* Points List */}
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm flex-1 flex flex-col min-h-0 overflow-hidden">
-            <div className="p-4 border-b border-slate-100 bg-slate-50/50">
-              <h3 className="font-semibold text-slate-700 text-sm">Registrerat detta möte</h3>
-            </div>
+          {/* TAB: NEW (DITT GAMLA INNEHÅLL) */}
+          {sidebarTab === 'new' && (
+            <div className="flex flex-col flex-1 gap-6 p-6 min-h-0 bg-slate-50">
 
-            <div className="flex-1 overflow-y-auto p-4 space-y-3">
-              {meeting.points && meeting.points.length > 0 ? (
-                meeting.points.map((point) => (
-                  <div key={point.id} className="p-3 bg-white border border-slate-100 rounded-xl shadow-sm hover:border-indigo-100 transition-colors group">
-                    <p className="font-medium text-slate-800 text-sm group-hover:text-indigo-700 transition-colors">{point.title}</p>
-                    <div className="flex justify-between items-center mt-2">
-                      <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wide">{point.priority}</span>
-                      <span className="w-2 h-2 rounded-full bg-blue-500" title="Status: Ny"></span>
+              {/* Quick Add Card */}
+              <div className="bg-slate-800 text-white p-6 rounded-2xl shadow-lg shrink-0">
+                <h3 className="font-bold mb-1">Registrera ny punkt</h3>
+                <p className="text-slate-400 text-sm mb-4">
+                  Fånga upp frågor och förslag direkt.
+                </p>
+
+                <form onSubmit={handleQuickAddPoint} className="relative">
+                  <input
+                    autoFocus
+                    type="text"
+                    value={newPointTitle}
+                    onChange={(e) => setNewPointTitle(e.target.value)}
+                    placeholder="Vad gäller saken?"
+                    className="w-full pl-4 pr-10 py-3 rounded-xl bg-slate-700 border border-slate-600 focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400 outline-none placeholder:text-slate-500 text-white"
+                  />
+                  <button
+                    type="submit"
+                    disabled={!newPointTitle.trim() || pointMutation.isPending}
+                    className="absolute right-2 top-2 p-1.5 bg-indigo-500 hover:bg-indigo-400 rounded-lg transition-colors text-white disabled:opacity-50"
+                  >
+                    {pointMutation.isPending ? (
+                      <Loader2 className="animate-spin" size={16} />
+                    ) : (
+                      <Plus size={18} />
+                    )}
+                  </button>
+                </form>
+              </div>
+
+              {/* Points List */}
+              <div className="flex-1 overflow-y-auto space-y-3">
+                {meeting.points && meeting.points.length > 0 ? (
+                  meeting.points.map((point) => (
+                    <div
+                      key={point.id}
+                      className="p-3 bg-white border border-slate-100 rounded-xl shadow-sm hover:border-indigo-100 transition-colors group"
+                    >
+                      <p className="font-medium text-slate-800 text-sm group-hover:text-indigo-700 transition-colors">
+                        {point.title}
+                      </p>
+                      <div className="flex justify-between items-center mt-2">
+                        <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wide">
+                          {point.priority}
+                        </span>
+                        <span
+                          className="w-2 h-2 rounded-full bg-blue-500"
+                          title="Status: Ny"
+                        />
+                      </div>
                     </div>
+                  ))
+                ) : (
+                  <div className="text-center py-8">
+                    <div className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-2 text-slate-300">
+                      <Plus size={20} />
+                    </div>
+                    <p className="text-slate-400 text-sm">Inga punkter än.</p>
                   </div>
-                ))
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* TAB: FOLLOW UP */}
+          {sidebarTab === 'followup' && (
+            <div className="flex-1 overflow-y-auto p-6 bg-slate-50 space-y-4">
+              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                Pågående Åtgärder
+              </h3>
+
+              {actions?.length === 0 ? (
+                <p className="text-slate-500 italic text-sm">
+                  Allt klart! Inga öppna åtgärder.
+                </p>
               ) : (
-                <div className="text-center py-8">
-                  <div className="w-10 h-10 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-2 text-slate-300">
-                    <Plus size={20} />
-                  </div>
-                  <p className="text-slate-400 text-sm">Inga punkter än.</p>
-                </div>
+                actions.map((action) => {
+                  const isOverdue = new Date(action.dueDate) < new Date();
+
+                  return (
+                    <div
+                      key={action.id}
+                      className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm"
+                    >
+                      <div className="flex justify-between items-start mb-2">
+                        <h4 className="font-bold text-slate-800 text-sm leading-tight">
+                          {action.title}
+                        </h4>
+                        {isOverdue && (
+                          <span className="text-[10px] bg-red-100 text-red-700 px-1.5 py-0.5 rounded font-bold">
+                            FÖRSENAD
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="text-xs text-slate-500 mb-3 space-y-1">
+                        <p>
+                          Ansvarig:{' '}
+                          <span className="text-slate-700">
+                            {action.assignedTo}
+                          </span>
+                        </p>
+                        <p>
+                          Klar senast:{' '}
+                          {new Date(action.dueDate).toLocaleDateString()}
+                        </p>
+                      </div>
+
+                      <button
+                        onClick={() =>
+                          updateActionMutation.mutate({
+                            id: action.id,
+                            status: 'DONE',
+                          })
+                        }
+                        className="w-full bg-emerald-50 text-emerald-700 border border-emerald-200 py-1.5 rounded-lg text-xs font-bold hover:bg-emerald-100 transition-colors flex items-center justify-center gap-1"
+                      >
+                        <CheckSquare size={14} /> Markera klar
+                      </button>
+                    </div>
+                  );
+                })
               )}
             </div>
-          </div>
-
+          )}
         </div>
       </div>
     </div>

@@ -9,6 +9,7 @@ import meetingRoutes from './routes/meetingRoutes.js';
 import decisionRoutes from './routes/decisionRoutes.js';
 import upgradeRoutes from './routes/upgradeRoutes.js';
 import dashboardRoutes from './routes/dashboardRoutes.js';
+import actionRoutes from './routes/actionRoutes.js';
 
 dotenv.config();
 
@@ -23,12 +24,10 @@ app.use(morgan('dev'));
 app.use('/api/systems', systemRoutes);
 app.use('/api/points', pointRoutes);
 app.use('/api/meetings', meetingRoutes);
-app.use('/api/systems', systemRoutes);
-app.use('/api/points', pointRoutes);
-app.use('/api/meetings', meetingRoutes);
 app.use('/api/decisions', decisionRoutes);
 app.use('/api/upgrades', upgradeRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/actions', actionRoutes);
 
 app.get('/', (req, res) => {
   res.send('Waulty Backend is running 🚀');
