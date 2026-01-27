@@ -26,9 +26,9 @@ export default function Layout({ children }) {
         <div className="p-6">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-lg">W</span>
+              <span className="text-white font-bold text-lg">DA</span>
             </div>
-            <span className="text-xl font-bold tracking-tight text-slate-800">Waulty</span>
+            <span className="text-xl font-bold tracking-tight text-slate-800">Dennis Auto</span>
           </div>
           <p className="text-xs text-slate-500 mt-1 pl-1">Systemförvaltning 2.0</p>
         </div>
