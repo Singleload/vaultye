@@ -45,3 +45,16 @@ export const updatePoint = async (req, res) => {
     res.status(500).json({ error: 'Kunde inte uppdatera punkten' });
   }
 };
+
+export const deletePoint = async (req, res) => {
+  const { id } = req.params;
+  try {
+    await prisma.point.delete({
+      where: { id }
+    });
+    res.status(204).send(); // 204 = No Content (Lyckades, men skickar inget tillbaka)
+  } catch (error) {
+    console.error('Error deleting point:', error);
+    res.status(500).json({ error: 'Kunde inte radera punkten' });
+  }
+};

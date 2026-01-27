@@ -1,9 +1,10 @@
 import express from 'express';
-import { createPoint, updatePoint } from '../controllers/pointController.js';
+import { createPoint, updatePoint, deletePoint } from '../controllers/pointController.js';
 
 const router = express.Router();
 
 router.post('/', createPoint);
-router.patch('/:id', updatePoint); // Ändrat från '/:id/status' till '/:id' för att vara mer generell
+router.patch('/:id', updatePoint);
+router.delete('/:id', deletePoint);
 
 export default router;

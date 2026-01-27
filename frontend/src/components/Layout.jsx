@@ -13,9 +13,7 @@ import clsx from 'clsx';
 
 const menuItems = [
   { icon: LayoutDashboard, label: 'Översikt', path: '/' },
-  { icon: Server, label: 'System', path: '/systems' },
-  { icon: Calendar, label: 'Möten & Beslut', path: '/meetings' },
-  { icon: ArrowUpCircle, label: 'Uppgraderingar', path: '/upgrades' },
+  { icon: Server, label: 'System', path: '/systems' }
 ];
 
 export default function Layout({ children }) {

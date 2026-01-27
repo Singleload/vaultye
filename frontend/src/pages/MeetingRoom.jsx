@@ -2,9 +2,9 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
-import { 
-  ArrowLeft, Save, Plus, Users, FileText, 
-  Calendar, Loader2, CheckCircle2 
+import {
+  ArrowLeft, Save, Plus, Users, FileText,
+  Calendar, Loader2, CheckCircle2, Trash2
 } from 'lucide-react';
 import Layout from '../components/Layout'; // <--- Vi använder nu Layouten
 
@@ -20,6 +20,10 @@ const updateMeetingApi = async ({ id, data }) => {
 
 const createPointApi = async (data) => {
   await axios.post('http://localhost:3000/api/points', data);
+};
+
+const deleteMeetingApi = async (id) => {
+  await axios.delete(`http://localhost:3000/api/meetings/${id}`);
 };
 
 export default function MeetingRoom() {
@@ -52,7 +56,7 @@ export default function MeetingRoom() {
     mutationFn: createPointApi,
     onSuccess: () => {
       setNewPointTitle('');
-      queryClient.invalidateQueries(['meeting', meetingId]); 
+      queryClient.invalidateQueries(['meeting', meetingId]);
     }
   });
 
@@ -69,15 +73,29 @@ export default function MeetingRoom() {
   const handleQuickAddPoint = (e) => {
     e.preventDefault();
     if (!newPointTitle.trim()) return;
-    
+
     pointMutation.mutate({
       title: newPointTitle,
       description: 'Skapad under möte via snabbregistrering.',
       origin: 'Resursgruppsmöte',
       priority: 'MEDIUM',
       systemId: meeting.systemId,
-      meetingId: meeting.id 
+      meetingId: meeting.id
     });
+  };
+
+  const deleteMutation = useMutation({
+    mutationFn: deleteMeetingApi,
+    onSuccess: () => {
+      // Gå tillbaka till systemvyn efter radering
+      navigate(`/systems/${meeting.systemId}`);
+    }
+  });
+
+  const handleDeleteMeeting = () => {
+    if (window.confirm('Är du säker på att du vill radera mötet? Punkter kopplade till mötet kommer finnas kvar men inte längre tillhöra detta möte.')) {
+      deleteMutation.mutate(meetingId);
+    }
   };
 
   if (isLoading) return (
@@ -90,13 +108,13 @@ export default function MeetingRoom() {
     // Vi omsluter inte med <Layout> här i filen om den redan ligger i App.jsx? 
     // Nej, i App.jsx ligger <Layout> runt <Routes>, så MeetingRoom renderas INUTI Layout. 
     // Vi behöver bara styla innehållet snyggt.
-    
+
     <div className="space-y-6 h-[calc(100vh-4rem)] flex flex-col">
       {/* Header Section */}
       <div className="flex justify-between items-center">
         <div className="flex items-center gap-4">
-          <button 
-            onClick={() => navigate(-1)} 
+          <button
+            onClick={() => navigate(-1)}
             className="p-2 hover:bg-white bg-slate-100 rounded-full text-slate-500 transition-colors"
           >
             <ArrowLeft size={20} />
@@ -107,38 +125,45 @@ export default function MeetingRoom() {
                 {meeting.system.name}
               </span>
               <span>•</span>
-              <span className="flex items-center gap-1"><Calendar size={12}/> {new Date(meeting.date).toLocaleDateString()}</span>
+              <span className="flex items-center gap-1"><Calendar size={12} /> {new Date(meeting.date).toLocaleDateString()}</span>
             </div>
             <h1 className="text-2xl font-bold text-slate-900">{meeting.title}</h1>
           </div>
         </div>
 
         <div className="flex items-center gap-4">
-           {saveMutation.isSuccess && <span className="text-emerald-600 text-sm font-medium flex items-center gap-1"><CheckCircle2 size={16}/> Sparat</span>}
-           <button 
-             onClick={handleSave}
-             disabled={saveMutation.isPending}
-             className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl font-medium transition-all shadow-lg shadow-indigo-200 active:scale-95 disabled:opacity-70"
-           >
-             {saveMutation.isPending ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
-             Spara Möte
-           </button>
+          {saveMutation.isSuccess && <span className="text-emerald-600 text-sm font-medium flex items-center gap-1"><CheckCircle2 size={16} /> Sparat</span>}
+          <button
+            onClick={handleDeleteMeeting}
+            className="p-2.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors"
+            title="Radera möte"
+          >
+            <Trash2 size={20} />
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saveMutation.isPending}
+            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl font-medium transition-all shadow-lg shadow-indigo-200 active:scale-95 disabled:opacity-70"
+          >
+            {saveMutation.isPending ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
+            Spara Möte
+          </button>
         </div>
       </div>
 
       {/* Main Workspace - Split View */}
       <div className="flex gap-6 flex-1 min-h-0">
-        
+
         {/* Left Column: Agenda & Protocol */}
         <div className="flex-1 flex flex-col gap-6 overflow-hidden">
-          
+
           {/* Attendees Card */}
           <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm shrink-0">
             <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
               <Users size={14} /> Närvarande Deltagare
             </h3>
-            <input 
-              type="text" 
+            <input
+              type="text"
               value={attendees}
               onChange={(e) => setAttendees(e.target.value)}
               placeholder="Skriv deltagarnas namn..."
@@ -151,7 +176,7 @@ export default function MeetingRoom() {
             <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2">
               <FileText size={14} /> Protokoll & Agenda
             </h3>
-            <textarea 
+            <textarea
               value={summary}
               onChange={(e) => setSummary(e.target.value)}
               placeholder="Skriv mötesanteckningar här..."
@@ -162,27 +187,27 @@ export default function MeetingRoom() {
 
         {/* Right Column: Quick Actions & Points */}
         <div className="w-96 flex flex-col gap-6 min-h-0">
-          
+
           {/* Quick Add Card */}
           <div className="bg-slate-800 text-white p-6 rounded-2xl shadow-lg shrink-0">
             <h3 className="font-bold mb-1">Registrera ny punkt</h3>
             <p className="text-slate-400 text-sm mb-4">Fånga upp frågor och förslag direkt.</p>
-            
+
             <form onSubmit={handleQuickAddPoint} className="relative">
-              <input 
+              <input
                 autoFocus
-                type="text" 
+                type="text"
                 value={newPointTitle}
                 onChange={(e) => setNewPointTitle(e.target.value)}
                 placeholder="Vad gäller saken?"
                 className="w-full pl-4 pr-10 py-3 rounded-xl bg-slate-700 border border-slate-600 focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400 outline-none placeholder:text-slate-500 text-white"
               />
-              <button 
+              <button
                 type="submit"
                 disabled={!newPointTitle.trim() || pointMutation.isPending}
                 className="absolute right-2 top-2 p-1.5 bg-indigo-500 hover:bg-indigo-400 rounded-lg transition-colors text-white disabled:opacity-50"
               >
-                {pointMutation.isPending ? <Loader2 className="animate-spin" size={16}/> : <Plus size={18} />}
+                {pointMutation.isPending ? <Loader2 className="animate-spin" size={16} /> : <Plus size={18} />}
               </button>
             </form>
           </div>
@@ -192,7 +217,7 @@ export default function MeetingRoom() {
             <div className="p-4 border-b border-slate-100 bg-slate-50/50">
               <h3 className="font-semibold text-slate-700 text-sm">Registrerat detta möte</h3>
             </div>
-            
+
             <div className="flex-1 overflow-y-auto p-4 space-y-3">
               {meeting.points && meeting.points.length > 0 ? (
                 meeting.points.map((point) => (

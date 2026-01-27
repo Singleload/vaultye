@@ -28,16 +28,14 @@ export const getSystemById = async (req, res) => {
     const system = await prisma.systemObject.findUnique({
       where: { id },
       include: {
-        // Vi vill ha med punkterna direkt
-        points: {
-          orderBy: { createdAt: 'desc' }
-        },
-        meetings: { orderBy: { date: 'desc' } }
+        points: { orderBy: { createdAt: 'desc' } },
+        meetings: { orderBy: { date: 'desc' } },
+        upgrades: { orderBy: { plannedDate: 'desc' } }
       }
     });
-    
+
     if (!system) return res.status(404).json({ error: 'Systemet hittades inte' });
-    
+
     res.json(system);
   } catch (error) {
     console.error(error);
@@ -63,5 +61,20 @@ export const createSystem = async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Kunde inte skapa system' });
+  }
+};
+
+export const updateSystem = async (req, res) => {
+  const { id } = req.params;
+  const { name, description, ownerName, ownerEmail, resourceGroup, status } = req.body;
+
+  try {
+    const updated = await prisma.systemObject.update({
+      where: { id },
+      data: { name, description, ownerName, ownerEmail, resourceGroup, status }
+    });
+    res.json(updated);
+  } catch (error) {
+    res.status(500).json({ error: 'Kunde inte uppdatera systemet' });
   }
 };

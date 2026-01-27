@@ -53,3 +53,16 @@ export const updateMeeting = async (req, res) => {
     res.status(500).json({ error: 'Kunde inte uppdatera möte' });
   }
 };
+
+export const deleteMeeting = async (req, res) => {
+  const { id } = req.params;
+  try {
+    await prisma.meeting.delete({
+      where: { id }
+    });
+    res.status(204).send();
+  } catch (error) {
+    console.error('Error deleting meeting:', error);
+    res.status(500).json({ error: 'Kunde inte radera mötet' });
+  }
+};
