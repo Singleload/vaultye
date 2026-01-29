@@ -8,7 +8,7 @@ import {
   ArrowLeft, Settings, FileText, CheckCircle2, 
   AlertCircle, Plus, X, Loader2, User, Calendar, 
   ArrowUpCircle, Trash2, Save, Send, Eye, EyeOff, 
-  UploadCloud, Server, Clock 
+  UploadCloud, Server, Clock, ChevronRight
 } from 'lucide-react';
 
 // Komponenter

@@ -1,15 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
-import {
-  ArrowLeft, Save, Plus, Users, FileText,
-  Calendar, Loader2, CheckCircle2, Trash2,
-  ListTodo, CheckSquare
+import { 
+  ArrowLeft, Save, Plus, Users, FileText, 
+  Calendar, Loader2, CheckCircle2, ListTodo, CheckSquare 
 } from 'lucide-react';
-import Layout from '../components/Layout'; // <--- Vi använder nu Layouten
+import { motion } from 'framer-motion';
 
-// API Calls
+// --- API ---
 const fetchMeeting = async (id) => {
   const res = await axios.get(`http://localhost:3000/api/meetings/${id}`);
   return res.data;
@@ -23,357 +22,307 @@ const createPointApi = async (data) => {
   await axios.post('http://localhost:3000/api/points', data);
 };
 
-const deleteMeetingApi = async (id) => {
-  await axios.delete(`http://localhost:3000/api/meetings/${id}`);
-};
-
 const fetchSystemActions = async (systemId) => {
   const res = await axios.get(`http://localhost:3000/api/actions/system/${systemId}`);
   return res.data;
 };
+
 const updateActionApi = async ({ id, status }) => {
   await axios.patch(`http://localhost:3000/api/actions/${id}`, { status });
 };
 
 export default function MeetingRoom() {
-  const { meetingId } = useParams();
+  const { id, meetingId } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-
-  const [summary, setSummary] = useState('');
-  const [attendees, setAttendees] = useState('');
+  
+  // State
+  const [sidebarTab, setSidebarTab] = useState('new'); // 'new' | 'followup'
   const [newPointTitle, setNewPointTitle] = useState('');
 
+  // Queries
   const { data: meeting, isLoading } = useQuery({
     queryKey: ['meeting', meetingId],
-    queryFn: () => fetchMeeting(meetingId),
+    queryFn: () => fetchMeeting(meetingId)
   });
 
-  useEffect(() => {
-    if (meeting) {
-      setSummary(meeting.summary || '');
-      setAttendees(meeting.attendees?.join(', ') || '');
-    }
-  }, [meeting]);
-
-  const saveMutation = useMutation({
-    mutationFn: updateMeetingApi,
-    onSuccess: () => queryClient.invalidateQueries(['meeting', meetingId])
-  });
-
-  const pointMutation = useMutation({
-    mutationFn: createPointApi,
-    onSuccess: () => {
-      setNewPointTitle('');
-      queryClient.invalidateQueries(['meeting', meetingId]);
-    }
-  });
-
-  const handleSave = () => {
-    saveMutation.mutate({
-      id: meetingId,
-      data: {
-        summary,
-        attendees: attendees.split(',').map(s => s.trim()).filter(Boolean)
-      }
-    });
-  };
-
-  const handleQuickAddPoint = (e) => {
-    e.preventDefault();
-    if (!newPointTitle.trim()) return;
-
-    pointMutation.mutate({
-      title: newPointTitle,
-      description: 'Skapad under möte via snabbregistrering.',
-      origin: 'Resursgruppsmöte',
-      priority: 'MEDIUM',
-      systemId: meeting.systemId,
-      meetingId: meeting.id
-    });
-  };
-
-  const [sidebarTab, setSidebarTab] = useState('new'); // 'new' | 'followup'
-
-  // Hämta actions
+  // Hämta actions för systemet (för uppföljning)
   const { data: actions, refetch: refetchActions } = useQuery({
     queryKey: ['actions', meeting?.systemId],
     queryFn: () => fetchSystemActions(meeting.systemId),
-    enabled: !!meeting?.systemId // Kör bara när vi vet systemId
+    enabled: !!meeting?.systemId
+  });
+
+  // Mutations
+  const updateMeetingMutation = useMutation({
+    mutationFn: updateMeetingApi,
+    onSuccess: () => {
+      queryClient.invalidateQueries(['meeting', meetingId]);
+      // Man kan lägga till en toast här om man vill
+    }
+  });
+
+  const createPointMutation = useMutation({
+    mutationFn: createPointApi,
+    onSuccess: () => {
+      queryClient.invalidateQueries(['meeting', meetingId]);
+      setNewPointTitle('');
+    }
   });
 
   const updateActionMutation = useMutation({
     mutationFn: updateActionApi,
-    onSuccess: () => refetchActions()
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: deleteMeetingApi,
     onSuccess: () => {
-      // Gå tillbaka till systemvyn efter radering
-      navigate(`/systems/${meeting.systemId}`);
+      refetchActions();
     }
   });
 
-  const handleDeleteMeeting = () => {
-    if (window.confirm('Är du säker på att du vill radera mötet? Punkter kopplade till mötet kommer finnas kvar men inte längre tillhöra detta möte.')) {
-      deleteMutation.mutate(meetingId);
-    }
+  const handleSaveNotes = (e) => {
+    e.preventDefault();
+    // Hämta värden direkt från formuläret via ID eller ref är inte idealiskt i React, 
+    // men för att spara "allt" utan state på varje tangenttryckning (prestanda) kör vi FormData här.
+    const form = document.getElementById('notes-form');
+    const fd = new FormData(form);
+    
+    updateMeetingMutation.mutate({
+      id: meetingId,
+      data: {
+        agenda: fd.get('agenda'),
+        summary: fd.get('summary')
+      }
+    });
   };
 
-  if (isLoading) return (
-    <div className="flex justify-center items-center h-screen bg-slate-50">
-      <Loader2 className="animate-spin text-indigo-600" size={32} />
-    </div>
-  );
+  if (isLoading) return <div className="flex h-screen justify-center items-center"><Loader2 className="animate-spin text-indigo-600" size={40} /></div>;
 
   return (
-    // Vi omsluter inte med <Layout> här i filen om den redan ligger i App.jsx? 
-    // Nej, i App.jsx ligger <Layout> runt <Routes>, så MeetingRoom renderas INUTI Layout. 
-    // Vi behöver bara styla innehållet snyggt.
-
-    <div className="space-y-6 h-[calc(100vh-4rem)] flex flex-col">
-      {/* Header Section */}
-      <div className="flex justify-between items-center">
+    // Container som fyller höjden minus layoutens padding/header ungefär
+    <div className="h-[calc(100vh-6rem)] flex flex-col bg-white rounded-[2rem] shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden">
+      
+      {/* --- HEADER --- */}
+      <div className="bg-white border-b border-slate-100 p-6 flex justify-between items-center shrink-0 z-10">
         <div className="flex items-center gap-4">
-          <button
-            onClick={() => navigate(-1)}
-            className="p-2 hover:bg-white bg-slate-100 rounded-full text-slate-500 transition-colors"
+          <button 
+            onClick={() => navigate(`/systems/${id}`)}
+            className="p-3 hover:bg-slate-50 rounded-2xl text-slate-500 transition-colors border border-transparent hover:border-slate-200"
           >
             <ArrowLeft size={20} />
           </button>
+          
           <div>
-            <div className="flex items-center gap-2 text-sm text-slate-500 mb-1">
-              <span className="font-medium bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded text-xs">
-                {meeting.system.name}
+            <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+              <span className="relative flex h-3 w-3">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
               </span>
-              <span>•</span>
-              <span className="flex items-center gap-1"><Calendar size={12} /> {new Date(meeting.date).toLocaleDateString()}</span>
-            </div>
-            <h1 className="text-2xl font-bold text-slate-900">{meeting.title}</h1>
+              {meeting.title}
+            </h1>
+            <p className="text-slate-500 text-sm font-medium mt-0.5">
+              {new Date(meeting.date).toLocaleDateString()} • {meeting.system.name}
+            </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-4">
-          {saveMutation.isSuccess && <span className="text-emerald-600 text-sm font-medium flex items-center gap-1"><CheckCircle2 size={16} /> Sparat</span>}
-          <button
-            onClick={handleDeleteMeeting}
-            className="p-2.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors"
-            title="Radera möte"
+        <div className="flex items-center gap-2">
+          <button 
+            onClick={handleSaveNotes}
+            disabled={updateMeetingMutation.isPending}
+            className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all active:scale-95 flex items-center gap-2"
           >
-            <Trash2 size={20} />
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={saveMutation.isPending}
-            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl font-medium transition-all shadow-lg shadow-indigo-200 active:scale-95 disabled:opacity-70"
-          >
-            {saveMutation.isPending ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
-            Spara Möte
+             {updateMeetingMutation.isPending ? <Loader2 className="animate-spin" size={18}/> : <Save size={18}/>} 
+             Spara Anteckningar
           </button>
         </div>
       </div>
 
-      {/* Main Workspace - Split View */}
-      <div className="flex gap-6 flex-1 min-h-0">
+      {/* --- MAIN CONTENT SPLIT --- */}
+      <div className="flex flex-1 overflow-hidden">
+        
+        {/* LEFT COLUMN: NOTES (Scrollable) */}
+        <div className="flex-1 p-8 overflow-y-auto bg-white">
+          <form id="notes-form" className="space-y-8 max-w-4xl mx-auto">
+            
+            {/* Agenda Section */}
+            <div className="bg-slate-50 p-6 rounded-[1.5rem] border border-slate-100 transition-shadow focus-within:shadow-md focus-within:border-indigo-100 focus-within:bg-white">
+              <label className="flex items-center gap-2 text-sm font-bold text-slate-700 uppercase tracking-wider mb-4">
+                <FileText size={18} className="text-indigo-500"/> Dagordning
+              </label>
+              <textarea 
+                name="agenda" 
+                defaultValue={meeting.agenda}
+                className="w-full bg-transparent p-4 rounded-xl border border-slate-200 min-h-[150px] shadow-sm focus:ring-2 focus:ring-indigo-500 outline-none leading-relaxed text-slate-700 font-medium placeholder:text-slate-400 resize-y"
+                placeholder="Skriv punkter att ta upp här..." 
+              />
+            </div>
 
-        {/* Left Column: Agenda & Protocol */}
-        <div className="flex-1 flex flex-col gap-6 overflow-hidden">
+            {/* Summary/Minutes Section */}
+            <div className="bg-slate-50 p-6 rounded-[1.5rem] border border-slate-100 transition-shadow focus-within:shadow-md focus-within:border-indigo-100 focus-within:bg-white">
+              <label className="flex items-center gap-2 text-sm font-bold text-slate-700 uppercase tracking-wider mb-4">
+                <Users size={18} className="text-indigo-500"/> Mötesprotokoll / Beslut
+              </label>
+              <textarea 
+                name="summary" 
+                defaultValue={meeting.summary}
+                className="w-full bg-transparent p-4 rounded-xl border border-slate-200 min-h-[400px] shadow-sm focus:ring-2 focus:ring-indigo-500 outline-none leading-relaxed text-slate-700 font-medium placeholder:text-slate-400 resize-y"
+                placeholder="Vad diskuterades? Vad bestämdes?" 
+              />
+            </div>
 
-          {/* Attendees Card */}
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm shrink-0">
-            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
-              <Users size={14} /> Närvarande Deltagare
-            </h3>
-            <input
-              type="text"
-              value={attendees}
-              onChange={(e) => setAttendees(e.target.value)}
-              placeholder="Skriv deltagarnas namn..."
-              className="w-full text-slate-800 placeholder:text-slate-400 focus:outline-none border-b border-slate-100 focus:border-indigo-500 py-1 transition-colors"
-            />
-          </div>
-
-          {/* Protocol Card (Fills remaining height) */}
-          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex-1 flex flex-col min-h-0">
-            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2">
-              <FileText size={14} /> Protokoll & Agenda
-            </h3>
-            <textarea
-              value={summary}
-              onChange={(e) => setSummary(e.target.value)}
-              placeholder="Skriv mötesanteckningar här..."
-              className="flex-1 w-full bg-transparent resize-none outline-none text-slate-700 leading-relaxed font-sans placeholder:text-slate-300"
-            />
-          </div>
+          </form>
         </div>
 
-        {/* Right Column: Quick Actions & Points */}
-        <div className="w-96 flex flex-col min-h-0 border-l border-slate-200 bg-white">
-
+        {/* RIGHT COLUMN: SIDEBAR (Tools) */}
+        <div className="w-[400px] flex flex-col border-l border-slate-100 bg-slate-50/50">
+          
           {/* Sidebar Tabs */}
-          <div className="flex border-b border-slate-200 shrink-0">
-            <button
+          <div className="flex border-b border-slate-200 bg-white sticky top-0 z-10">
+            <button 
               onClick={() => setSidebarTab('new')}
-              className={`flex-1 py-3 text-sm font-bold transition-colors ${sidebarTab === 'new'
-                  ? 'text-indigo-600 border-b-2 border-indigo-600'
-                  : 'text-slate-500 hover:text-slate-800'
-                }`}
+              className={`flex-1 py-4 text-sm font-bold transition-all border-b-2 ${
+                sidebarTab === 'new' 
+                  ? 'text-indigo-600 border-indigo-600 bg-indigo-50/10' 
+                  : 'text-slate-500 border-transparent hover:text-slate-800 hover:bg-slate-50'
+              }`}
             >
               <div className="flex items-center justify-center gap-2">
-                <Plus size={16} /> Nytt
+                <Plus size={16}/> Ny Punkt
               </div>
             </button>
-
-            <button
+            <button 
               onClick={() => setSidebarTab('followup')}
-              className={`flex-1 py-3 text-sm font-bold transition-colors ${sidebarTab === 'followup'
-                  ? 'text-indigo-600 border-b-2 border-indigo-600'
-                  : 'text-slate-500 hover:text-slate-800'
-                }`}
+              className={`flex-1 py-4 text-sm font-bold transition-all border-b-2 ${
+                sidebarTab === 'followup' 
+                  ? 'text-indigo-600 border-indigo-600 bg-indigo-50/10' 
+                  : 'text-slate-500 border-transparent hover:text-slate-800 hover:bg-slate-50'
+              }`}
             >
               <div className="flex items-center justify-center gap-2">
-                <ListTodo size={16} />
-                Uppföljning
-                {actions?.length > 0 && (
-                  <span className="bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded-full text-[10px]">
-                    {actions.length}
+                <ListTodo size={16}/> Uppföljning 
+                {actions?.filter(a => a.status !== 'DONE').length > 0 && (
+                  <span className="bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded-md text-[10px]">
+                    {actions.filter(a => a.status !== 'DONE').length}
                   </span>
                 )}
               </div>
             </button>
           </div>
 
-          {/* TAB: NEW (DITT GAMLA INNEHÅLL) */}
-          {sidebarTab === 'new' && (
-            <div className="flex flex-col flex-1 gap-6 p-6 min-h-0 bg-slate-50">
+          <div className="flex-1 overflow-y-auto p-6 space-y-4">
+            
+            {/* TAB: NEW POINT */}
+            {sidebarTab === 'new' && (
+              <>
+                 <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+                   <h3 className="font-bold text-slate-800 mb-3 text-sm flex items-center gap-2">
+                     <Plus size={16} className="text-slate-400"/> Snabbregistrera behov
+                   </h3>
+                   <form onSubmit={(e) => { 
+                      e.preventDefault(); 
+                      if(newPointTitle.trim()) {
+                        createPointMutation.mutate({ 
+                          title: newPointTitle, 
+                          description: 'Skapad under möte', 
+                          systemId: meeting.systemId, 
+                          origin: 'Möte', 
+                          priority: 'MEDIUM', 
+                          meetingId: meeting.id 
+                        });
+                      }
+                   }}>
+                     <input 
+                       autoFocus 
+                       value={newPointTitle} 
+                       onChange={(e) => setNewPointTitle(e.target.value)} 
+                       placeholder="Vad gäller saken?" 
+                       className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none mb-3 font-medium placeholder:text-slate-400" 
+                     />
+                     <button 
+                       type="submit" 
+                       disabled={!newPointTitle.trim() || createPointMutation.isPending}
+                       className="w-full bg-slate-900 text-white py-3 rounded-xl text-xs font-bold hover:bg-slate-800 transition-colors shadow-lg active:scale-95 disabled:opacity-50"
+                     >
+                       {createPointMutation.isPending ? 'Sparar...' : 'Lägg till punkt'}
+                     </button>
+                   </form>
+                 </div>
 
-              {/* Quick Add Card */}
-              <div className="bg-slate-800 text-white p-6 rounded-2xl shadow-lg shrink-0">
-                <h3 className="font-bold mb-1">Registrera ny punkt</h3>
-                <p className="text-slate-400 text-sm mb-4">
-                  Fånga upp frågor och förslag direkt.
-                </p>
-
-                <form onSubmit={handleQuickAddPoint} className="relative">
-                  <input
-                    autoFocus
-                    type="text"
-                    value={newPointTitle}
-                    onChange={(e) => setNewPointTitle(e.target.value)}
-                    placeholder="Vad gäller saken?"
-                    className="w-full pl-4 pr-10 py-3 rounded-xl bg-slate-700 border border-slate-600 focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400 outline-none placeholder:text-slate-500 text-white"
-                  />
-                  <button
-                    type="submit"
-                    disabled={!newPointTitle.trim() || pointMutation.isPending}
-                    className="absolute right-2 top-2 p-1.5 bg-indigo-500 hover:bg-indigo-400 rounded-lg transition-colors text-white disabled:opacity-50"
-                  >
-                    {pointMutation.isPending ? (
-                      <Loader2 className="animate-spin" size={16} />
-                    ) : (
-                      <Plus size={18} />
-                    )}
-                  </button>
-                </form>
-              </div>
-
-              {/* Points List */}
-              <div className="flex-1 overflow-y-auto space-y-3">
-                {meeting.points && meeting.points.length > 0 ? (
-                  meeting.points.map((point) => (
-                    <div
-                      key={point.id}
-                      className="p-3 bg-white border border-slate-100 rounded-xl shadow-sm hover:border-indigo-100 transition-colors group"
-                    >
-                      <p className="font-medium text-slate-800 text-sm group-hover:text-indigo-700 transition-colors">
-                        {point.title}
+                 <div className="space-y-3">
+                   <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider pl-1">Registrerat detta möte</h4>
+                   {meeting.points?.map(p => (
+                     <motion.div 
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        key={p.id} 
+                        className="p-4 bg-white border border-slate-100 rounded-2xl shadow-sm flex justify-between items-center"
+                     >
+                       <p className="font-bold text-slate-800 text-sm truncate">{p.title}</p>
+                       <span className="text-[10px] font-bold bg-slate-100 text-slate-500 px-2 py-1 rounded-lg uppercase tracking-wider">
+                         {p.priority}
+                       </span>
+                     </motion.div>
+                   ))}
+                   {meeting.points?.length === 0 && (
+                      <p className="text-center text-slate-400 text-sm italic mt-4 py-8 bg-slate-50/50 rounded-2xl border border-slate-100 border-dashed">
+                        Inga nya punkter än.
                       </p>
-                      <div className="flex justify-between items-center mt-2">
-                        <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wide">
-                          {point.priority}
-                        </span>
-                        <span
-                          className="w-2 h-2 rounded-full bg-blue-500"
-                          title="Status: Ny"
-                        />
-                      </div>
-                    </div>
-                  ))
+                   )}
+                 </div>
+              </>
+            )}
+
+            {/* TAB: FOLLOW UP (ACTIONS) */}
+            {sidebarTab === 'followup' && (
+              <div className="space-y-3">
+                {actions?.length === 0 ? (
+                  <p className="text-slate-500 italic text-sm text-center mt-10">Allt klart! Inga öppna åtgärder.</p> 
                 ) : (
-                  <div className="text-center py-8">
-                    <div className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-2 text-slate-300">
-                      <Plus size={20} />
-                    </div>
-                    <p className="text-slate-400 text-sm">Inga punkter än.</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* TAB: FOLLOW UP */}
-          {sidebarTab === 'followup' && (
-            <div className="flex-1 overflow-y-auto p-6 bg-slate-50 space-y-4">
-              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-                Pågående Åtgärder
-              </h3>
-
-              {actions?.length === 0 ? (
-                <p className="text-slate-500 italic text-sm">
-                  Allt klart! Inga öppna åtgärder.
-                </p>
-              ) : (
-                actions.map((action) => {
-                  const isOverdue = new Date(action.dueDate) < new Date();
-
-                  return (
-                    <div
-                      key={action.id}
-                      className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm"
+                  actions?.map(action => (
+                    <motion.div 
+                      layout
+                      key={action.id} 
+                      className={`p-4 rounded-2xl border shadow-sm transition-all ${
+                        action.status === 'DONE' 
+                          ? 'bg-slate-50 border-slate-100 opacity-60' 
+                          : 'bg-white border-slate-100'
+                      }`}
                     >
-                      <div className="flex justify-between items-start mb-2">
-                        <h4 className="font-bold text-slate-800 text-sm leading-tight">
+                      <div className="flex justify-between items-start mb-2 gap-2">
+                        <h4 className={`font-bold text-sm leading-tight ${action.status === 'DONE' ? 'line-through text-slate-500' : 'text-slate-800'}`}>
                           {action.title}
                         </h4>
-                        {isOverdue && (
-                          <span className="text-[10px] bg-red-100 text-red-700 px-1.5 py-0.5 rounded font-bold">
+                        
+                        {action.status !== 'DONE' && new Date(action.dueDate) < new Date() && (
+                          <span className="text-[10px] bg-red-100 text-red-700 px-1.5 py-0.5 rounded font-bold whitespace-nowrap">
                             FÖRSENAD
                           </span>
                         )}
                       </div>
-
-                      <div className="text-xs text-slate-500 mb-3 space-y-1">
-                        <p>
-                          Ansvarig:{' '}
-                          <span className="text-slate-700">
-                            {action.assignedTo}
-                          </span>
-                        </p>
-                        <p>
-                          Klar senast:{' '}
-                          {new Date(action.dueDate).toLocaleDateString()}
-                        </p>
+                      
+                      <div className="text-xs text-slate-500 mb-3 space-y-1 font-medium">
+                        <p>Ansvarig: <span className="text-slate-700">{action.assignedTo}</span></p>
+                        <p>Deadline: {new Date(action.dueDate).toLocaleDateString()}</p>
                       </div>
 
-                      <button
-                        onClick={() =>
-                          updateActionMutation.mutate({
-                            id: action.id,
-                            status: 'DONE',
-                          })
-                        }
-                        className="w-full bg-emerald-50 text-emerald-700 border border-emerald-200 py-1.5 rounded-lg text-xs font-bold hover:bg-emerald-100 transition-colors flex items-center justify-center gap-1"
-                      >
-                        <CheckSquare size={14} /> Markera klar
-                      </button>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          )}
+                      {action.status !== 'DONE' ? (
+                        <button 
+                          onClick={() => updateActionMutation.mutate({ id: action.id, status: 'DONE' })} 
+                          className="w-full bg-emerald-50 text-emerald-700 border border-emerald-100 py-2.5 rounded-xl text-xs font-bold hover:bg-emerald-100 transition-colors flex items-center justify-center gap-1.5"
+                        >
+                          <CheckSquare size={14} /> Markera klar
+                        </button>
+                      ) : (
+                        <div className="flex items-center justify-center gap-1 text-xs font-bold text-emerald-600 py-2 bg-emerald-50/50 rounded-xl">
+                          <CheckCircle2 size={14} /> Klar
+                        </div>
+                      )}
+                    </motion.div>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
         </div>
+
       </div>
     </div>
   );
