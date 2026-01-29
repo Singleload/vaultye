@@ -389,10 +389,10 @@ export default function SystemDetail() {
       {/* TABS NAVIGATION */}
       <div className="flex space-x-1 bg-white p-1.5 rounded-2xl shadow-sm border border-slate-200 w-fit">
         {[
-          { id: 'needs', label: 'Behov & Förslag', icon: FileText },
-          { id: 'actions', label: 'Åtgärder', icon: CheckCircle2 },
           { id: 'meetings', label: 'Möten', icon: Calendar },
-          { id: 'upgrades', label: 'Uppgraderingar', icon: ArrowUpCircle }
+          { id: 'needs', label: 'Behov & Förslag', icon: FileText },
+          { id: 'upgrades', label: 'Uppgraderingar', icon: ArrowUpCircle },
+          { id: 'actions', label: 'Åtgärder', icon: CheckCircle2 }
         ].map((tab) => (
           <button
             key={tab.id}
