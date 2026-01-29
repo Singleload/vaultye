@@ -205,7 +205,7 @@ export default function SystemDetail() {
          type: 'success',
          title: 'Förfrågan skickad',
          message: 'Beslutsunderlag har skapats. Kopiera länken nedan:',
-         details: data?.decisionLink || 'Ingen länk genererades'
+         details: data.link || 'Ingen länk genererades'
        });
     },
     onError: () => {

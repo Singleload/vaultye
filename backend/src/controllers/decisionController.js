@@ -29,7 +29,7 @@ export const createDecisionRequest = async (req, res) => {
       }
     });
 
-    const magicLinkUrl = `http://localhost:5173/decision/${token}`;
+    const magicLinkUrl = `http://localhost/decision/${token}`;
     console.log(`📧 MOCK EMAIL: Decision Link (${type}): ${magicLinkUrl}`);
     
     res.json({ message: 'Förfrågan skapad', link: magicLinkUrl });

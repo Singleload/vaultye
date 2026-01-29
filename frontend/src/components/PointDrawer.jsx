@@ -98,7 +98,7 @@ export default function PointDrawer({ point, isOpen, onClose }) {
         type: 'success',
         title: 'Förfrågan skapad',
         message: 'Beslutsunderlag har skapats. Kopiera länken nedan:',
-        details: data?.decisionLink || 'Länk saknas'
+        details: data.link|| 'Länk saknas'
       });
       setIsConfirmingSend(false);
     },
