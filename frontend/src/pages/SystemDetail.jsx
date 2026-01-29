@@ -51,8 +51,10 @@ const updateUpgradeApi = async ({ id, status }) => {
   await axios.patch(`http://localhost:3000/api/upgrades/${id}`, { status });
 };
 
+// --- FIX: Returnera data här ---
 const requestUpgradeDecisionApi = async (id) => {
-  await axios.post('http://localhost:3000/api/decisions/request', { id, type: 'UPGRADE' });
+  const res = await axios.post('http://localhost:3000/api/decisions/request', { id, type: 'UPGRADE' });
+  return res.data; 
 };
 
 const exportToEasitApi = async (payload) => {
@@ -193,15 +195,26 @@ export default function SystemDetail() {
     onSuccess: () => queryClient.invalidateQueries(['system', id])
   });
 
+  // --- FIX: Ta emot data och visa länk ---
   const upgradeDecisionMutation = useMutation({
     mutationFn: requestUpgradeDecisionApi,
-    onSuccess: () => {
+    onSuccess: (data) => {
+       queryClient.invalidateQueries(['system', id]);
        setFeedback({
          isOpen: true,
          type: 'success',
          title: 'Förfrågan skickad',
-         message: 'Beslutsunderlag har skickats till systemägaren.'
+         message: 'Beslutsunderlag har skapats. Kopiera länken nedan:',
+         details: data?.decisionLink || 'Ingen länk genererades'
        });
+    },
+    onError: () => {
+      setFeedback({
+        isOpen: true,
+        type: 'error',
+        title: 'Misslyckades',
+        message: 'Kunde inte skapa beslutsunderlag.'
+      });
     }
   });
 

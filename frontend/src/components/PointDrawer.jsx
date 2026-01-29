@@ -8,15 +8,17 @@ import {
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
 import clsx from 'clsx';
+import FeedbackModal from './FeedbackModal';
 
 // --- API ---
 
+// --- FIX: Returnera data ---
 const sendDecisionRequestApi = async (id) => {
   const res = await axios.post(
     'http://localhost:3000/api/decisions/request',
     { id, type: 'POINT' }
   );
-  return res.data;
+  return res.data; 
 };
 
 const deletePointApi = async (id) => {
@@ -38,6 +40,15 @@ export default function PointDrawer({ point, isOpen, onClose }) {
   // Lokalt state för formuläret
   const [formData, setFormData] = useState({});
   const [isConfirmingSend, setIsConfirmingSend] = useState(false);
+
+  // Feedback state lokalt i drawern
+  const [feedback, setFeedback] = useState({
+    isOpen: false,
+    type: 'success',
+    title: '',
+    message: '',
+    details: ''
+  });
 
   // Synka state när punkten öppnas
   useEffect(() => {
@@ -76,12 +87,29 @@ export default function PointDrawer({ point, isOpen, onClose }) {
     }
   });
 
+  // --- FIX: Ta emot data och visa länk ---
   const requestDecisionMutation = useMutation({
     mutationFn: sendDecisionRequestApi,
-    onSuccess: () => {
-      alert('Förfrågan skickad till systemägaren!');
+    onSuccess: (data) => {
+      queryClient.invalidateQueries(['system']);
+      
+      setFeedback({
+        isOpen: true,
+        type: 'success',
+        title: 'Förfrågan skapad',
+        message: 'Beslutsunderlag har skapats. Kopiera länken nedan:',
+        details: data?.decisionLink || 'Länk saknas'
+      });
       setIsConfirmingSend(false);
-      onClose();
+    },
+    onError: () => {
+        setFeedback({
+            isOpen: true,
+            type: 'error',
+            title: 'Något gick fel',
+            message: 'Kunde inte skapa beslutsunderlag.'
+        });
+        setIsConfirmingSend(false);
     }
   });
 
@@ -109,6 +137,7 @@ export default function PointDrawer({ point, isOpen, onClose }) {
   const isReadOnly = point && readOnlyStatuses.includes(point.status);
 
   return (
+    <>
     <AnimatePresence>
       {isOpen && point && (
         <>
@@ -351,7 +380,11 @@ export default function PointDrawer({ point, isOpen, onClose }) {
                      <option value="NEW">Ny</option>
                      <option value="ASSESSED">Bedömd</option>
                      <option value="RECOMMENDED">Rekommenderad</option>
-                     <option value="REJECTED">Avfärdad</option>        
+                     <option value="PENDING_APPROVAL">Väntar på beslut</option>
+                     <option value="APPROVED">Godkänd</option>
+                     <option value="REJECTED">Avfärdad</option>
+                     <option value="IN_PROGRESS">Pågående</option>
+                     <option value="DONE">Klar</option>
                    </select>
                  </div>
                </div>
@@ -417,5 +450,32 @@ export default function PointDrawer({ point, isOpen, onClose }) {
         </>
       )}
     </AnimatePresence>
+    
+    {/* Feedback Modal (for decision link) */}
+    <FeedbackModal 
+        isOpen={feedback.isOpen} 
+        onClose={() => setFeedback({ ...feedback, isOpen: false })} 
+        type={feedback.type} 
+        title={feedback.title} 
+        message={feedback.message} 
+        details={feedback.details} 
+    />
+
+    {/* Confirm Modal for Sending Request */}
+    <AnimatePresence>
+    {isConfirmingSend && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/20 backdrop-blur-sm" onClick={() => setIsConfirmingSend(false)}>
+            <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className="bg-white p-6 rounded-2xl shadow-xl max-w-sm w-full" onClick={e => e.stopPropagation()}>
+            <h3 className="font-bold text-lg text-slate-800 mb-2">Begär beslut?</h3>
+            <p className="text-slate-600 mb-6">Detta kommer att skapa en unik länk som du kan skicka till systemägaren.</p>
+            <div className="flex justify-end gap-3">
+                <button onClick={() => setIsConfirmingSend(false)} className="px-4 py-2 text-slate-600 font-bold hover:bg-slate-50 rounded-lg">Avbryt</button>
+                <button onClick={() => requestDecisionMutation.mutate(point.id)} className="px-4 py-2 bg-amber-500 text-white font-bold rounded-lg hover:bg-amber-600 shadow-lg shadow-amber-200">Ja, skapa länk</button>
+            </div>
+            </motion.div>
+        </div>
+    )}
+    </AnimatePresence>
+    </>
   );
 }
