@@ -26,7 +26,7 @@ export default function Layout({ children }) {
     { icon: Server, label: 'System', path: '/systems' }
   ];
 
-  // Lägg till Admin-länk dynamiskt
+  // Lägg till Admin-länk dynamiskt om användaren är ADMIN
   if (user?.role === 'ADMIN') {
     menuItems.push({ icon: Users, label: 'Användare', path: '/admin/users' });
   }
@@ -68,7 +68,7 @@ export default function Layout({ children }) {
                       : "text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium"
                   )}
                 >
-                  {/* Active Indicator Line (Optional aesthetic touch) */}
+                  {/* Active Indicator Line (Estetisk detalj) */}
                   {isActive && (
                     <motion.div 
                       layoutId="activeTab"
@@ -95,14 +95,18 @@ export default function Layout({ children }) {
               </div>
               <div className="overflow-hidden">
                 <div className="flex items-center gap-2">
-                  <p className="font-bold text-sm text-slate-800 truncate">{user?.name}</p>
+                  <p className="font-bold text-sm text-slate-800 truncate" title={user?.name}>
+                    {user?.name}
+                  </p>
                   {user?.role === 'ADMIN' && (
                     <span className="bg-indigo-100 text-indigo-700 text-[10px] px-1.5 py-0.5 rounded font-bold flex items-center gap-0.5">
                        <Shield size={10} /> Admin
                     </span>
                   )}
                 </div>
-                <p className="text-xs text-slate-500 truncate">{user?.email}</p>
+                <p className="text-xs text-slate-500 truncate" title={user?.email}>
+                  {user?.email}
+                </p>
               </div>
             </div>
 
@@ -119,9 +123,9 @@ export default function Layout({ children }) {
 
       </aside>
 
-      {/* Main Content */}
+      {/* Main Content Area */}
       <main className="flex-1 overflow-y-auto bg-slate-50">
-        <div className="max-w-7xl mx-auto p-8">
+        <div className="max-w-7xl mx-auto p-8 pb-20">
           {children}
         </div>
       </main>
