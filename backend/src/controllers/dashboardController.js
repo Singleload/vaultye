@@ -4,24 +4,33 @@ const prisma = new PrismaClient();
 
 export const getDashboardStats = async (req, res) => {
   try {
-    // Gemensamt filter för att exkludera arkiverade system
-    // Vi kollar att systemet INTE är arkiverat
-    const activeSystemFilter = { system: { isArchived: false } };
+    // 1. Hämta inloggad användares ID från token (sattes i authMiddleware)
+    const userId = req.user.id;
+
+    // 2. Skapa ett återanvändbart filter för relationer (Points, Meetings, Upgrades)
+    // Detta säger: "Hämta bara om systemet INTE är arkiverat OCH tillhör denna userId"
+    const activeSystemFilter = { 
+      system: { 
+        isArchived: false, 
+        userId: userId // <--- HÄR ÄR ISOLERINGEN FÖR RELATIONER
+      } 
+    };
 
     const [
       systemCount,
       pendingPoints,
-      pendingUpgrades, // <--- NY: Hämta uppgraderingar som väntar
+      pendingUpgrades,
       activePoints,
       completedPoints,
       upcomingMeetings,
       recentActivity
     ] = await Promise.all([
-      // 1. Antal system (Endast aktiva och icke-arkiverade)
+      // 1. Antal system (Här lägger du koden du frågade om)
       prisma.systemObject.count({ 
         where: { 
           status: 'ACTIVE', 
-          isArchived: false 
+          isArchived: false, 
+          userId: userId // <--- HÄR ÄR ISOLERINGEN FÖR SYSTEM
         } 
       }),
       
@@ -29,11 +38,11 @@ export const getDashboardStats = async (req, res) => {
       prisma.point.count({ 
         where: { 
           status: { in: ['RECOMMENDED', 'PENDING_APPROVAL'] },
-          ...activeSystemFilter
+          ...activeSystemFilter // Använder filtret vi skapade ovan
         } 
       }),
 
-      // 2b. Uppgraderingar som väntar på beslut (NY)
+      // 2b. Uppgraderingar som väntar på beslut
       prisma.upgrade.count({
         where: {
           status: 'PENDING_APPROVAL',
@@ -41,7 +50,7 @@ export const getDashboardStats = async (req, res) => {
         }
       }),
       
-      // 3. Pågående åtgärder (Godkända punkter + Pågående)
+      // 3. Pågående åtgärder
       prisma.point.count({ 
         where: { 
           status: { in: ['APPROVED', 'IN_PROGRESS'] },
@@ -58,7 +67,7 @@ export const getDashboardStats = async (req, res) => {
         } 
       }),
 
-      // 5. Kommande möten (Närmaste 5 för icke-arkiverade system)
+      // 5. Kommande möten
       prisma.meeting.findMany({
         where: { 
           date: { gte: new Date() },
@@ -78,12 +87,13 @@ export const getDashboardStats = async (req, res) => {
       })
     ]);
 
-    // Summera punkter och uppgraderingar för "Väntar på beslut"
+    // Summera
     const totalPendingDecisions = pendingPoints + pendingUpgrades;
 
+    // Skicka svaret
     res.json({
       systemCount,
-      pendingDecisions: totalPendingDecisions, // Skicka summan
+      pendingDecisions: totalPendingDecisions,
       activePoints,
       completedPoints,
       upcomingMeetings,

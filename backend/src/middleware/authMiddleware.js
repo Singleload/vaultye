@@ -4,13 +4,16 @@ const JWT_SECRET = 'xasda47521531454131xaeTareat1234Xasd1231asSDii4312s'; // I p
 
 export const authenticateToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1]; // "Bearer TOKEN"
+  const token = authHeader && authHeader.split(' ')[1];
 
-  if (!token) return res.status(401).json({ error: 'Ingen åtkomst' });
+  if (!token) return res.status(401).json({ error: 'Ingen åtkomst (Ingen token)' });
 
   jwt.verify(token, JWT_SECRET, (err, user) => {
-    if (err) return res.status(403).json({ error: 'Ogiltig token' });
-    req.user = user; // Nu har vi användarens ID och Role i req.user
+    if (err) {
+        console.log("Token verify error:", err.message); // Bra för debugging
+        return res.status(403).json({ error: 'Ogiltig token' });
+    }
+    req.user = user;
     next();
   });
 };

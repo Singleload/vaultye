@@ -3,7 +3,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 
 const prisma = new PrismaClient();
-const JWT_SECRET = 'hemlig_nyckel_byt_i_prod';
+const JWT_SECRET = 'xasda47521531454131xaeTareat1234Xasd1231asSDii4312s';
 
 export const login = async (req, res) => {
   const { email, password } = req.body;
