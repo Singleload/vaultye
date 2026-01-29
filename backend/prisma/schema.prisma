@@ -99,6 +99,7 @@ model MagicLink {
 model Action {
   id         String    @id @default(uuid())
   title      String
+  description String?  @db.Text
   assignedTo String?
   startDate  DateTime?
   dueDate    DateTime?

@@ -7,12 +7,13 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft, Settings, FileText, CheckCircle2,
   AlertCircle, Plus, X, Loader2, User, Calendar, Play, ChevronRight,
-  ArrowUpCircle, Trash2, Save, Send
+  ArrowUpCircle, Trash2, Save, Send, Eye, EyeOff
 } from 'lucide-react';
 import clsx from 'clsx';
 
 // Importera din Drawer-komponent
 import PointDrawer from '../components/PointDrawer';
+import ActionDrawer from '../components/ActionDrawer';
 
 // --- API Helpers ---
 const fetchSystemDetails = async (id) => {
@@ -63,14 +64,18 @@ const TabButton = ({ active, onClick, children, icon: Icon }) => (
 );
 
 const PriorityBadge = ({ level }) => {
-  const colors = {
-    LOW: "bg-slate-100 text-slate-600 border-slate-200",
-    MEDIUM: "bg-blue-50 text-blue-700 border-blue-200",
-    HIGH: "bg-orange-50 text-orange-700 border-orange-200",
-    CRITICAL: "bg-red-50 text-red-700 border-red-200"
+  const styles = {
+    'LOW': 'bg-slate-50 text-slate-600 border-slate-200',
+    'MEDIUM': 'bg-blue-50 text-blue-700 border-blue-200',
+    'HIGH': 'bg-orange-50 text-orange-700 border-orange-200',
+    'CRITICAL': 'bg-red-50 text-red-700 border-red-200'
   };
-  return <span className={`px-2 py-0.5 rounded border text-xs font-bold ${colors[level]}`}>{level}</span>;
-}
+  return (
+    <span className={`px-2 py-0.5 rounded border text-xs font-bold ${styles[level]}`}>
+      {translatePriorityText(level)}
+    </span>
+  );
+};
 
 const StatusDot = ({ status }) => {
   const colors = {
@@ -83,7 +88,76 @@ const StatusDot = ({ status }) => {
   return <div className={`w-2.5 h-2.5 rounded-full ${colors[status] || "bg-slate-300"}`} />;
 }
 
+const translateStatusText = (status) => {
+  const map = {
+    'NEW': 'Ny',
+    'ASSESSED': 'Bedömd',
+    'RECOMMENDED': 'Rekommenderad',
+    'APPROVED': 'Godkänd',
+    'REJECTED': 'Avfärdad',
+    'PENDING_APPROVAL': 'Väntar beslut',
+    'IN_PROGRESS': 'Pågående',
+    'DONE': 'Klar',
+    'PENDING': 'Väntande' // För Actions
+  };
+  return map[status] || status;
+};
+
+const translatePriorityText = (prio) => {
+  const map = { 'LOW': 'Låg', 'MEDIUM': 'Medium', 'HIGH': 'Hög', 'CRITICAL': 'Kritisk' };
+  return map[prio] || prio;
+};
+const StatusBadge = ({ status }) => {
+  const styles = {
+    'NEW': 'bg-blue-100 text-blue-700 border-blue-200',
+    'ASSESSED': 'bg-purple-100 text-purple-700 border-purple-200',
+    'RECOMMENDED': 'bg-amber-100 text-amber-700 border-amber-200',
+    'APPROVED': 'bg-emerald-100 text-emerald-700 border-emerald-200',
+    'IN_PROGRESS': 'bg-indigo-100 text-indigo-700 border-indigo-200',
+    'DONE': 'bg-emerald-100 text-emerald-700 border-emerald-200',
+    'REJECTED': 'bg-slate-100 text-slate-500 border-slate-200 line-through',
+    'PENDING_APPROVAL': 'bg-orange-100 text-orange-800 border-orange-200',
+    'PENDING': 'bg-slate-100 text-slate-600 border-slate-200' // Action default
+  };
+
+  return (
+    <span className={`px-3 py-1 rounded-full text-xs font-bold border ${styles[status] || 'bg-gray-100 text-gray-600'}`}>
+      {translateStatusText(status)}
+    </span>
+  );
+};
+
+const translateStatus = (status) => {
+  const map = {
+    'NEW': 'Ny',
+    'ASSESSED': 'Bedömd',
+    'RECOMMENDED': 'Rekommenderad',
+    'APPROVED': 'Godkänd',
+    'REJECTED': 'Nekad',
+    'PENDING_APPROVAL': 'Väntar beslut',
+    'IN_PROGRESS': 'Pågående',
+    'DONE': 'Klar'
+  };
+  return map[status] || status;
+};
+
+const translatePriority = (prio) => {
+  const map = {
+    'LOW': 'Låg',
+    'MEDIUM': 'Medium',
+    'HIGH': 'Hög',
+    'CRITICAL': 'Kritisk'
+  };
+  return map[prio] || prio;
+};
+
 export default function SystemDetail() {
+  const quickUpdateActionMutation = useMutation({
+    mutationFn: async ({ id, status }) => {
+      await axios.patch(`http://localhost:3000/api/actions/${id}`, { status });
+    },
+    onSuccess: () => queryClient.invalidateQueries(['system', id])
+  });
   const { id } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -92,6 +166,9 @@ export default function SystemDetail() {
   const [activeTab, setActiveTab] = useState('needs');
   const [isPointModalOpen, setIsPointModalOpen] = useState(false);
   const [selectedPoint, setSelectedPoint] = useState(null); // För Drawer
+  const [selectedAction, setSelectedAction] = useState(null); // För ActionDrawer
+  const [showRejected, setShowRejected] = useState(false); // För filtrering
+  const [showAssessed, setShowAssessed] = useState(false); // För filtrering
 
   // 1. Hämta System (inkl punkter och möten)
   const { data: system, isLoading, isError } = useQuery({
@@ -400,62 +477,72 @@ export default function SystemDetail() {
               <div className="flex justify-between items-center mb-6">
                 <div>
                   <h3 className="font-bold text-slate-800 text-lg">Backlogg</h3>
-                  <p className="text-sm text-slate-500">Inkomna behov, förslag och problemrapporter.</p>
+                  <div className="flex items-center gap-4 mt-1">
+                    <p className="text-sm text-slate-500">Inkomna behov och förslag.</p>
+
+                    {/* FILTER TOGGLE */}
+                    <button
+                      onClick={() => setShowRejected(!showRejected)}
+                      className="flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-indigo-600 bg-slate-100 hover:bg-indigo-50 px-2 py-1 rounded transition-colors"
+                    >
+                      {showRejected ? <EyeOff size={14} /> : <Eye size={14} />}
+                      {showRejected ? 'Dölj avfärdade' : 'Visa avfärdade'}
+                    </button>
+                    <button
+                      onClick={() => setShowAssessed(!showAssessed)}
+                      className={`flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded transition-colors ${showAssessed ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-500 hover:text-indigo-600'}`}
+                    >
+                      {showAssessed ? <EyeOff size={14} /> : <Eye size={14} />}
+                      {showAssessed ? 'Dölj bedömda' : 'Visa bedömda'}
+                    </button>
+                  </div>
                 </div>
                 <button
                   onClick={() => setIsPointModalOpen(true)}
-                  className="flex items-center gap-2 text-sm bg-white border border-slate-300 text-slate-700 px-4 py-2 rounded-lg hover:bg-slate-50 hover:border-slate-400 transition-all shadow-sm"
+                  className="flex items-center gap-2 text-sm bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 shadow-sm transition-all"
                 >
-                  <Plus size={16} />
-                  Registrera manuellt
+                  <Plus size={16} /> Registrera behov
                 </button>
               </div>
 
-              {system.points?.length === 0 ? (
-                <div className="text-center py-16 bg-white rounded-xl border border-dashed border-slate-200">
-                  <div className="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-3 text-slate-300">
-                    <AlertCircle size={24} />
-                  </div>
-                  <h4 className="text-slate-900 font-medium">Inga punkter än</h4>
-                  <p className="text-slate-500 text-sm mt-1">Allt verkar lugnt! Skapa ett möte eller registrera manuellt.</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {system.points?.map((item) => (
+              <div className="space-y-3">
+                {system.points
+                  ?.filter(item => showRejected ? true : (item.status !== 'REJECTED')) // Filtrering
+                  .map((item) => (
                     <div
                       key={item.id}
                       onClick={() => setSelectedPoint(item)}
-                      className="bg-white p-4 rounded-xl border border-slate-200 hover:border-indigo-300 hover:shadow-md transition-all cursor-pointer group"
+                      className={`bg-white p-4 rounded-xl border transition-all cursor-pointer group flex justify-between items-center 
+            ${item.status === 'REJECTED' ? 'border-slate-100 opacity-60 bg-slate-50' : 'border-slate-200 hover:border-indigo-300 hover:shadow-md'}`}
                     >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                          <StatusDot status={item.status} />
-                          <div>
-                            <h4 className="font-semibold text-slate-800 group-hover:text-indigo-700 transition-colors">{item.title}</h4>
-                            <div className="flex items-center gap-2 text-xs text-slate-400 mt-0.5">
-                              <span>Från: {item.origin}</span>
-                              <span>•</span>
-                              <span>{new Date(item.createdAt).toLocaleDateString()}</span>
-                            </div>
+                      <div className="flex items-center gap-4">
+                        <StatusDot status={item.status} />
+                        <div>
+                          <h4 className={`font-semibold transition-colors ${item.status === 'REJECTED' ? 'text-slate-500 line-through' : 'text-slate-800 group-hover:text-indigo-700'}`}>
+                            {item.title}
+                          </h4>
+                          <div className="flex items-center gap-2 text-xs text-slate-400 mt-0.5">
+                            <span>Från: {item.origin}</span>
+                            <span>•</span>
+                            <span>{new Date(item.createdAt).toLocaleDateString()}</span>
                           </div>
                         </div>
-                        <div className="flex items-center gap-4">
-                          <PriorityBadge level={item.priority} />
-                          <div className={clsx(
-                            "text-xs font-medium px-3 py-1 rounded uppercase tracking-wide",
-                            item.status === 'RECOMMENDED' ? "bg-amber-100 text-amber-800" :
-                              item.status === 'APPROVED' ? "bg-emerald-100 text-emerald-800" :
-                                "bg-slate-100 text-slate-600"
-                          )}>
-                            {item.status === 'NEW' ? 'Ny' :
-                              item.status === 'RECOMMENDED' ? 'Rekommenderad' : item.status}
-                          </div>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <span className={`px-2 py-0.5 rounded border text-xs font-bold 
+              ${item.priority === 'CRITICAL' ? 'bg-red-50 text-red-700 border-red-200' :
+                            item.priority === 'HIGH' ? 'bg-orange-50 text-orange-700 border-orange-200' :
+                              item.priority === 'MEDIUM' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                                'bg-slate-50 text-slate-600 border-slate-200'}`}>
+                          {translatePriority(item.priority)}
+                        </span>
+                        <div className="text-xs font-medium px-3 py-1 bg-slate-100 rounded text-slate-600 uppercase tracking-wide min-w-[80px] text-center">
+                          {translateStatus(item.status)}
                         </div>
                       </div>
                     </div>
                   ))}
-                </div>
-              )}
+              </div>
             </motion.div>
           )}
 
@@ -465,7 +552,6 @@ export default function SystemDetail() {
               <h3 className="font-bold text-slate-800 text-lg mb-6">Åtgärdsplan</h3>
 
               <div className="space-y-3">
-                {/* Filtrera ut punkter som har en action */}
                 {system.points?.filter(p => p.action).length === 0 ? (
                   <p className="text-slate-500 italic">Inga aktiva åtgärder just nu.</p>
                 ) : (
@@ -474,14 +560,35 @@ export default function SystemDetail() {
                     const isOverdue = new Date(action.dueDate) < new Date() && action.status !== 'DONE';
 
                     return (
-                      <div key={action.id} className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex justify-between items-center">
-                        <div>
-                          <h4 className="font-bold text-slate-800">{action.title}</h4>
-                          <div className="flex items-center gap-4 text-sm text-slate-500 mt-1">
-                            <span className="flex items-center gap-1"><User size={14} /> {action.assignedTo}</span>
-                            <span className={`flex items-center gap-1 ${isOverdue ? 'text-red-600 font-bold' : ''}`}>
-                              <Calendar size={14} /> {new Date(action.dueDate).toLocaleDateString()}
-                            </span>
+                      <div
+                        key={action.id}
+                        onClick={() => setSelectedAction({ ...action, point })} // Öppna ActionDrawer och skicka med Point-info
+                        className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex justify-between items-center cursor-pointer hover:border-indigo-300 hover:shadow-md transition-all group"
+                      >
+                        <div className="flex items-center gap-4">
+                          {/* Markera som klar - Checkbox knapp */}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation(); // Hindra att drawern öppnas
+                              const newStatus = action.status === 'DONE' ? 'IN_PROGRESS' : 'DONE';
+                              quickUpdateActionMutation.mutate({ id: action.id, status: newStatus });
+                            }}
+                            className={`w-6 h-6 rounded border flex items-center justify-center transition-colors 
+                     ${action.status === 'DONE' ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-slate-300 hover:border-indigo-500 text-transparent hover:text-indigo-200'}`}
+                          >
+                            <CheckCircle2 size={16} />
+                          </button>
+
+                          <div>
+                            <h4 className={`font-bold transition-colors ${action.status === 'DONE' ? 'text-slate-500 line-through' : 'text-slate-800 group-hover:text-indigo-700'}`}>
+                              {action.title}
+                            </h4>
+                            <div className="flex items-center gap-4 text-sm text-slate-500 mt-1">
+                              <span className="flex items-center gap-1"><User size={14} /> {action.assignedTo}</span>
+                              <span className={`flex items-center gap-1 ${isOverdue ? 'text-red-600 font-bold' : ''}`}>
+                                <Calendar size={14} /> {new Date(action.dueDate).toLocaleDateString()}
+                              </span>
+                            </div>
                           </div>
                         </div>
                         <div>
@@ -489,7 +596,7 @@ export default function SystemDetail() {
                             action.status === 'IN_PROGRESS' ? 'bg-blue-100 text-blue-700 border-blue-200' :
                               'bg-slate-100 text-slate-600 border-slate-200'
                             }`}>
-                            {action.status === 'DONE' ? 'Klar' : action.status === 'IN_PROGRESS' ? 'Pågående' : action.status}
+                            {translateStatus(action.status)}
                           </span>
                         </div>
                       </div>
@@ -674,6 +781,11 @@ export default function SystemDetail() {
         point={selectedPoint}
         isOpen={!!selectedPoint}
         onClose={() => setSelectedPoint(null)}
+      />
+      <ActionDrawer
+        action={selectedAction}
+        isOpen={!!selectedAction}
+        onClose={() => setSelectedAction(null)}
       />
     </div>
   );

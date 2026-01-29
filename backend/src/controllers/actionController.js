@@ -35,20 +35,46 @@ export const createAction = async (req, res) => {
 // Uppdatera status/noteringar på en åtgärd (t.ex. under mötet)
 export const updateAction = async (req, res) => {
   const { id } = req.params;
-  const { status, notes, assignedTo, dueDate } = req.body;
+  const { status, notes, assignedTo, dueDate, description } = req.body;
 
   try {
-    const updated = await prisma.action.update({
+    // 1. Uppdatera själva åtgärden
+    const updatedAction = await prisma.action.update({
       where: { id },
       data: {
         status,
         notes,
         assignedTo,
+        description,
         dueDate: dueDate ? new Date(dueDate) : undefined
-      }
+      },
+      include: { point: true } // Vi behöver veta vilken point den hör till
     });
-    res.json(updated);
+
+    // 2. Synka status till Point
+    // Om åtgärden är KLAR -> Sätt point till DONE
+    // Om åtgärden är PÅGÅENDE -> Sätt point till IN_PROGRESS (om den inte redan är det)
+    if (updatedAction.pointId) {
+      let newPointStatus = null;
+
+      if (status === 'DONE') {
+        newPointStatus = 'DONE';
+      } else if (status === 'IN_PROGRESS' || status === 'PENDING') {
+        // Om vi backar från DONE eller startar den, se till att pointen lever
+        newPointStatus = 'IN_PROGRESS';
+      }
+
+      if (newPointStatus) {
+        await prisma.point.update({
+          where: { id: updatedAction.pointId },
+          data: { status: newPointStatus }
+        });
+      }
+    }
+
+    res.json(updatedAction);
   } catch (error) {
+    console.error(error);
     res.status(500).json({ error: 'Kunde inte uppdatera åtgärd' });
   }
 };

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Save, AlertTriangle, CheckCircle, TrendingUp, DollarSign, Loader2, Trash2, Send, Calendar, User, PlayCircle } from 'lucide-react';
+import { X, Save, AlertTriangle, CheckCircle, TrendingUp, DollarSign, Loader2, Trash2, Send, Calendar, User, PlayCircle, Lock } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
 import clsx from 'clsx';
@@ -34,6 +34,11 @@ export default function PointDrawer({ point, isOpen, onClose }) {
   const [formData, setFormData] = useState({});
 
   const [decisionLink, setDecisionLink] = useState(null);
+  // Statusar som låser punkten för redigering
+  const readOnlyStatuses = ['ASSESSED', 'PENDING_APPROVAL', 'APPROVED', 'REJECTED', 'DONE', 'IN_PROGRESS'];
+
+  // Är denna punkt låst?
+  const isReadOnly = point && readOnlyStatuses.includes(point.status);
 
   // Fyll formuläret när en ny point öppnas
   useEffect(() => {
@@ -170,8 +175,9 @@ export default function PointDrawer({ point, isOpen, onClose }) {
                     <div className="flex gap-2">
                       {[1, 2, 3, 4, 5].map((score) => (
                         <button
+                          disabled={isReadOnly}
                           key={score}
-                          onClick={() => handleChange('relevance', score)}
+                          onClick={() => !isReadOnly && handleChange('relevance', score)}
                           className={clsx(
                             "w-10 h-10 rounded-lg font-bold transition-all",
                             formData.relevance === score
@@ -188,6 +194,7 @@ export default function PointDrawer({ point, isOpen, onClose }) {
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-2">Genomförbarhet</label>
                     <select
+                      disabled={isReadOnly}
                       value={formData.feasibility}
                       onChange={(e) => handleChange('feasibility', e.target.value)}
                       className="w-full px-4 py-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none bg-white"
@@ -203,6 +210,7 @@ export default function PointDrawer({ point, isOpen, onClose }) {
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Förväntad Nytta</label>
                     <textarea
+                      disabled={isReadOnly}
                       rows="2"
                       value={formData.benefit}
                       onChange={(e) => handleChange('benefit', e.target.value)}
@@ -217,6 +225,7 @@ export default function PointDrawer({ point, isOpen, onClose }) {
                       <div className="relative">
                         <AlertTriangle size={16} className="absolute left-3 top-3 text-amber-500" />
                         <input
+                          disabled={isReadOnly}
                           value={formData.risk}
                           onChange={(e) => handleChange('risk', e.target.value)}
                           className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-amber-500 outline-none"
@@ -229,6 +238,7 @@ export default function PointDrawer({ point, isOpen, onClose }) {
                       <div className="relative">
                         <DollarSign size={16} className="absolute left-3 top-3 text-slate-400" />
                         <input
+                          disabled={isReadOnly}
                           value={formData.costEstimate}
                           onChange={(e) => handleChange('costEstimate', e.target.value)}
                           className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none"
@@ -249,8 +259,9 @@ export default function PointDrawer({ point, isOpen, onClose }) {
                     <div className="grid grid-cols-3 gap-3">
                       {['NEW', 'ASSESSED', 'RECOMMENDED', 'REJECTED'].map((status) => (
                         <button
+                          disabled={isReadOnly}
                           key={status}
-                          onClick={() => handleChange('status', status)}
+                          onClick={() => !isReadOnly && handleChange('status', status)}
                           className={clsx(
                             "py-2 px-3 rounded-lg text-sm font-medium border transition-all",
                             formData.status === status
@@ -268,6 +279,7 @@ export default function PointDrawer({ point, isOpen, onClose }) {
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Dina kommentarer (Interna)</label>
                     <textarea
+                      disabled={isReadOnly}
                       rows="2"
                       value={formData.managerComment}
                       onChange={(e) => handleChange('managerComment', e.target.value)}
@@ -291,18 +303,18 @@ export default function PointDrawer({ point, isOpen, onClose }) {
                     <label className="block text-sm font-medium text-emerald-800 mb-1">Tilldela till (Ansvarig)</label>
                     <div className="relative">
                       <User size={16} className="absolute left-3 top-3 text-emerald-600" />
-                      <input name="assignedTo" required className="w-full pl-10 p-2 rounded-lg border border-emerald-200 focus:ring-2 focus:ring-emerald-500 outline-none" placeholder="Namn på ansvarig" />
+                      <input disabled={isReadOnly} name="assignedTo" required className="w-full pl-10 p-2 rounded-lg border border-emerald-200 focus:ring-2 focus:ring-emerald-500 outline-none" placeholder="Namn på ansvarig" />
                     </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-emerald-800 mb-1">Startdatum</label>
-                      <input name="startDate" type="date" required className="w-full p-2 rounded-lg border border-emerald-200 focus:ring-2 focus:ring-emerald-500" />
+                      <input disabled={isReadOnly} name="startDate" type="date" required className="w-full p-2 rounded-lg border border-emerald-200 focus:ring-2 focus:ring-emerald-500" />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-emerald-800 mb-1">Slutdatum</label>
-                      <input name="dueDate" type="date" required className="w-full p-2 rounded-lg border border-emerald-200 focus:ring-2 focus:ring-emerald-500" />
+                      <input disabled={isReadOnly} name="dueDate" type="date" required className="w-full p-2 rounded-lg border border-emerald-200 focus:ring-2 focus:ring-emerald-500" />
                     </div>
                   </div>
 
@@ -399,29 +411,54 @@ export default function PointDrawer({ point, isOpen, onClose }) {
               ) : (
                 /* NORMAL FOOTER MODE */
                 <div className="flex justify-between items-center">
-                  <button
-                    onClick={handleDelete}
-                    className="text-red-500 hover:text-red-700 p-2 hover:bg-red-50 rounded-lg transition-colors"
-                    title="Radera punkt"
-                  >
-                    <Trash2 size={20} />
-                  </button>
+                  {/* RADERA KNAPP - Spärrad om beslut är taget */}
+                  {(point.status === 'APPROVED' || point.status === 'REJECTED' || point.status === 'IN_PROGRESS' || point.status === 'DONE') ? (
+                    <div title="Kan ej radera punkter med beslut" className="text-slate-300 p-2 cursor-not-allowed">
+                      <Trash2 size={20} />
+                    </div>
+                  ) : (
+                    <button
+                      onClick={handleDelete}
+                      className="text-red-500 hover:text-red-700 p-2 hover:bg-red-50 rounded-lg transition-colors"
+                      title="Radera punkt"
+                    >
+                      <Trash2 size={20} />
+                    </button>
+                  )}
 
                   <div className="flex gap-3">
-                    {/* Visa endast "Skicka"-knappen om status är Rekommenderad */}
-                    {formData.status === 'RECOMMENDED' && (
-                      <button
-                        onClick={() => setIsConfirmingSend(true)}
-                        className="px-4 py-2.5 bg-amber-100 text-amber-800 font-medium rounded-xl hover:bg-amber-200 transition-colors flex items-center gap-2"
-                      >
-                        <Send size={18} />
-                        <span className="hidden sm:inline">Begär beslut</span>
-                      </button>
+                    {/* SYSTEMFÖRVALTARENS KNAPPAR */}
+                    {/* Visa endast om status INTE redan är godkänd/nekad */}
+                    {point.status !== 'APPROVED' && point.status !== 'REJECTED' && point.status !== 'IN_PROGRESS' && point.status !== 'DONE' && (
+                      <>
+                        {/* Alternativ 1: Begär av ägare */}
+                        <button
+                          onClick={() => setIsConfirmingSend(true)}
+                          className="px-4 py-2.5 bg-amber-100 text-amber-800 font-medium rounded-xl hover:bg-amber-200 transition-colors flex items-center gap-2"
+                        >
+                          <Send size={18} />
+                          <span className="hidden sm:inline">Begär beslut</span>
+                        </button>
+
+                        {/* Alternativ 2: Godkänn själv (NY!) */}
+                        <button
+                          onClick={() => {
+                            // Sätt status till APPROVED direkt via update-mutationen
+                            mutation.mutate({ id: point.id, data: { ...formData, status: 'APPROVED' } });
+                          }}
+                          className="px-4 py-2.5 bg-emerald-100 text-emerald-800 font-medium rounded-xl hover:bg-emerald-200 transition-colors flex items-center gap-2"
+                        >
+                          <CheckCircle size={18} />
+                          <span className="hidden sm:inline">Godkänn direkt</span>
+                        </button>
+                      </>
                     )}
 
                     <button onClick={onClose} className="px-6 py-2.5 text-slate-600 font-medium hover:bg-slate-50 rounded-xl transition-colors">
                       Avbryt
                     </button>
+
+                    {/* Spara-knappen (visas alltid för att spara textändringar etc) */}
                     <button
                       onClick={handleSave}
                       disabled={mutation.isPending}
