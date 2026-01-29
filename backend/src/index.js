@@ -10,6 +10,7 @@ import decisionRoutes from './routes/decisionRoutes.js';
 import upgradeRoutes from './routes/upgradeRoutes.js';
 import dashboardRoutes from './routes/dashboardRoutes.js';
 import actionRoutes from './routes/actionRoutes.js';
+import easitRoutes from './routes/easitRoutes.js';
 
 dotenv.config();
 
@@ -28,6 +29,7 @@ app.use('/api/decisions', decisionRoutes);
 app.use('/api/upgrades', upgradeRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/actions', actionRoutes);
+app.use('/api/easit', easitRoutes);
 
 app.get('/', (req, res) => {
   res.send('Waulty Backend is running 🚀');

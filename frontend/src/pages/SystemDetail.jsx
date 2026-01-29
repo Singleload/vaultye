@@ -480,21 +480,24 @@ export default function SystemDetail() {
                   <div className="flex items-center gap-4 mt-1">
                     <p className="text-sm text-slate-500">Inkomna behov och förslag.</p>
 
-                    {/* FILTER TOGGLE */}
-                    <button
-                      onClick={() => setShowRejected(!showRejected)}
-                      className="flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-indigo-600 bg-slate-100 hover:bg-indigo-50 px-2 py-1 rounded transition-colors"
-                    >
-                      {showRejected ? <EyeOff size={14} /> : <Eye size={14} />}
-                      {showRejected ? 'Dölj avfärdade' : 'Visa avfärdade'}
-                    </button>
-                    <button
-                      onClick={() => setShowAssessed(!showAssessed)}
-                      className={`flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded transition-colors ${showAssessed ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-500 hover:text-indigo-600'}`}
-                    >
-                      {showAssessed ? <EyeOff size={14} /> : <Eye size={14} />}
-                      {showAssessed ? 'Dölj bedömda' : 'Visa bedömda'}
-                    </button>
+                    {/* FILTER KNAPPAR */}
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setShowRejected(!showRejected)}
+                        className={`flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded transition-colors ${showRejected ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-500 hover:text-indigo-600'}`}
+                      >
+                        {showRejected ? <EyeOff size={14} /> : <Eye size={14} />}
+                        {showRejected ? 'Dölj avfärdade' : 'Visa avfärdade'}
+                      </button>
+
+                      <button
+                        onClick={() => setShowAssessed(!showAssessed)}
+                        className={`flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded transition-colors ${showAssessed ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-500 hover:text-indigo-600'}`}
+                      >
+                        {showAssessed ? <EyeOff size={14} /> : <Eye size={14} />}
+                        {showAssessed ? 'Dölj bedömda' : 'Visa bedömda'}
+                      </button>
+                    </div>
                   </div>
                 </div>
                 <button
@@ -507,16 +510,26 @@ export default function SystemDetail() {
 
               <div className="space-y-3">
                 {system.points
-                  ?.filter(item => showRejected ? true : (item.status !== 'REJECTED')) // Filtrering
+                  ?.filter(item => {
+                    // EXPLICIT FILTRERINGSLOGIK
+                    // 1. Dölj alltid avfärdade om showRejected är false
+                    if (item.status === 'REJECTED' && !showRejected) return false;
+                    // 2. Dölj alltid bedömda om showAssessed är false
+                    if (item.status === 'ASSESSED' && !showAssessed) return false;
+
+                    return true;
+                  })
                   .map((item) => (
                     <div
                       key={item.id}
                       onClick={() => setSelectedPoint(item)}
                       className={`bg-white p-4 rounded-xl border transition-all cursor-pointer group flex justify-between items-center 
-            ${item.status === 'REJECTED' ? 'border-slate-100 opacity-60 bg-slate-50' : 'border-slate-200 hover:border-indigo-300 hover:shadow-md'}`}
+              ${item.status === 'REJECTED' ? 'border-slate-100 opacity-60 bg-slate-50' : 'border-slate-200 hover:border-indigo-300 hover:shadow-md'}`}
                     >
                       <div className="flex items-center gap-4">
-                        <StatusDot status={item.status} />
+                        {/* Status Badge till vänster för tydlighet */}
+                        <StatusBadge status={item.status} />
+
                         <div>
                           <h4 className={`font-semibold transition-colors ${item.status === 'REJECTED' ? 'text-slate-500 line-through' : 'text-slate-800 group-hover:text-indigo-700'}`}>
                             {item.title}
@@ -529,19 +542,18 @@ export default function SystemDetail() {
                         </div>
                       </div>
                       <div className="flex items-center gap-4">
-                        <span className={`px-2 py-0.5 rounded border text-xs font-bold 
-              ${item.priority === 'CRITICAL' ? 'bg-red-50 text-red-700 border-red-200' :
-                            item.priority === 'HIGH' ? 'bg-orange-50 text-orange-700 border-orange-200' :
-                              item.priority === 'MEDIUM' ? 'bg-blue-50 text-blue-700 border-blue-200' :
-                                'bg-slate-50 text-slate-600 border-slate-200'}`}>
-                          {translatePriority(item.priority)}
-                        </span>
-                        <div className="text-xs font-medium px-3 py-1 bg-slate-100 rounded text-slate-600 uppercase tracking-wide min-w-[80px] text-center">
-                          {translateStatus(item.status)}
-                        </div>
+                        <PriorityBadge level={item.priority} />
                       </div>
                     </div>
                   ))}
+
+                {/* Visa meddelande om allt är dolt */}
+                {system.points?.length > 0 &&
+                  system.points?.filter(item => (showRejected || item.status !== 'REJECTED') && (showAssessed || item.status !== 'ASSESSED')).length === 0 && (
+                    <p className="text-center text-slate-400 text-sm py-8 italic">
+                      Alla punkter är dolda av filter (Bedömda/Avfärdade).
+                    </p>
+                  )}
               </div>
             </motion.div>
           )}
@@ -784,6 +796,7 @@ export default function SystemDetail() {
       />
       <ActionDrawer
         action={selectedAction}
+        systemName={system.name}
         isOpen={!!selectedAction}
         onClose={() => setSelectedAction(null)}
       />
