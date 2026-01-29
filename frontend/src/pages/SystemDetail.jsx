@@ -4,10 +4,11 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
+import FeedbackModal from '../components/FeedbackModal';
 import {
   ArrowLeft, Settings, FileText, CheckCircle2,
   AlertCircle, Plus, X, Loader2, User, Calendar, Play, ChevronRight,
-  ArrowUpCircle, Trash2, Save, Send, Eye, EyeOff
+  ArrowUpCircle, Trash2, Save, Send, Eye, EyeOff, UploadCloud
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -174,6 +175,7 @@ export default function SystemDetail() {
   const [showRejected, setShowRejected] = useState(false); // För filtrering
   const [showAssessed, setShowAssessed] = useState(false); // För filtrering
   const [isMeetingModalOpen, setIsMeetingModalOpen] = useState(false);
+  const [feedback, setFeedback] = useState({ isOpen: false, type: 'success', title: '', message: '', details: '' });
 
   // 1. Hämta System (inkl punkter och möten)
   const { data: system, isLoading, isError } = useQuery({
@@ -272,6 +274,50 @@ export default function SystemDetail() {
     });
   };
 
+  const easitUpgradeMutation = useMutation({
+    mutationFn: async (payload) => {
+      const res = await axios.post('http://localhost:3000/api/easit/export', payload);
+      return res.data;
+    },
+    onSuccess: (data) => {
+      setFeedback({
+        isOpen: true,
+        type: 'success',
+        title: 'Uppgradering exporterad!',
+        message: 'Uppgifterna har skickats till Easit och en CSV-fil har skapats.',
+        details: `Fil sparad: ${data.path}`
+      });
+    },
+    onError: (error) => {
+      setFeedback({
+        isOpen: true,
+        type: 'error',
+        title: 'Export misslyckades',
+        message: 'Kunde inte spara CSV-filen.',
+        details: error.message
+      });
+    }
+  });
+
+  const handleSendUpgradeToEasit = (upg) => {
+    // Skapa payload (mappa uppgraderingens fält till CSV-strukturen)
+    const payload = {
+      externalId: upg.id,
+      system: system.name,
+      requester: system.managerUsername || "Okänd Förvaltare",
+      dueDate: upg.plannedDate,
+      title: `Uppgradering v${upg.version}: ${upg.title}`,
+      description: `Beskrivning: ${upg.description}\n\nNertid: ${upg.downtime ? 'Ja' : 'Nej'}`,
+      originalPointId: '' // Uppgraderingar har ingen origin point
+    };
+
+    console.group("🚀 Skickar Uppgradering till Backend (Easit)");
+    console.log(JSON.stringify(payload, null, 2));
+    console.groupEnd();
+
+    easitUpgradeMutation.mutate(payload);
+  };
+
   // Lägg detta bredvid de andra statesen
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
@@ -294,7 +340,10 @@ export default function SystemDetail() {
         ownerName: fd.get('ownerName'),
         ownerEmail: fd.get('ownerEmail'),
         resourceGroup: fd.get('resourceGroup'),
-        status: fd.get('status')
+        status: fd.get('status'),
+        ownerUsername: fd.get('ownerUsername'),
+        managerName: fd.get('managerName'),
+        managerUsername: fd.get('managerUsername'),
       }
     });
   };
@@ -503,6 +552,16 @@ export default function SystemDetail() {
                               <CheckCircle2 size={12} /> Markera som genomförd
                             </button>
                           )}
+                          {upg.status === 'DONE' && (
+                            <button
+                              onClick={() => handleSendUpgradeToEasit(upg)}
+                              disabled={easitUpgradeMutation.isPending}
+                              className="text-xs bg-indigo-50 text-indigo-700 border border-indigo-100 px-3 py-1.5 rounded-lg hover:bg-indigo-100 font-medium flex items-center gap-1 disabled:opacity-50"
+                            >
+                              {easitUpgradeMutation.isPending ? <Loader2 className="animate-spin" size={12} /> : <UploadCloud size={12} />}
+                              Skicka till Easit
+                            </button>
+                          )}
 
                           {/* 3. RADERA (Endast om Planerad - Skydda historiken) */}
                           {upg.status === 'PLANNED' && (
@@ -686,48 +745,83 @@ export default function SystemDetail() {
             />
             <motion.div
               initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }}
-              className="bg-white rounded-2xl shadow-xl w-full max-w-lg relative z-10 p-6"
+              className="bg-white rounded-2xl shadow-xl w-full max-w-lg relative z-10 p-6 max-h-[90vh] overflow-y-auto"
+              onClick={e => e.stopPropagation()}
             >
               <div className="flex justify-between items-center mb-6 border-b border-slate-100 pb-4">
                 <h2 className="text-xl font-bold text-slate-800">Systeminställningar</h2>
-                <button onClick={() => setIsSettingsOpen(false)}><X size={24} className="text-slate-400" /></button>
+                <button onClick={() => setIsSettingsOpen(false)}><X size={24} className="text-slate-400 hover:text-slate-600" /></button>
               </div>
 
               <form onSubmit={handleUpdateSystem} className="space-y-4">
+
+                {/* GRUNDLÄGGANDE INFO */}
                 <div>
-                  <label className="block text-sm font-medium mb-1">Systemnamn</label>
-                  <input name="name" defaultValue={system.name} className="w-full p-2 border rounded-lg" />
+                  <label className="block text-sm font-medium mb-1 text-slate-700">Systemnamn</label>
+                  <input name="name" defaultValue={system.name} className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">Beskrivning</label>
-                  <textarea name="description" rows="3" defaultValue={system.description} className="w-full p-2 border rounded-lg" />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Systemägare</label>
-                    <input name="ownerName" defaultValue={system.ownerName} className="w-full p-2 border rounded-lg" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Email</label>
-                    <input name="ownerEmail" defaultValue={system.ownerEmail} className="w-full p-2 border rounded-lg" />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Resursgrupp</label>
-                  <input name="resourceGroup" defaultValue={system.resourceGroup} className="w-full p-2 border rounded-lg" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Status</label>
-                  <select name="status" defaultValue={system.status} className="w-full p-2 border rounded-lg bg-white">
-                    <option value="ACTIVE">Aktiv Förvaltning</option>
-                    <option value="MAINTENANCE">Underhållsläge</option>
-                    <option value="RETIRED">Avvecklad</option>
-                  </select>
+                  <label className="block text-sm font-medium mb-1 text-slate-700">Beskrivning</label>
+                  <textarea name="description" rows="3" defaultValue={system.description} className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" />
                 </div>
 
-                <div className="flex justify-end gap-3 pt-4">
-                  <button type="button" onClick={() => setIsSettingsOpen(false)} className="px-4 py-2 text-slate-600 font-medium">Avbryt</button>
-                  <button type="submit" className="px-6 py-2 bg-indigo-600 text-white font-medium rounded-lg flex items-center gap-2">
+                {/* SYSTEMÄGARE */}
+                <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-3">
+                  <h4 className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2">
+                    Systemägare <span className="font-normal text-slate-400 normal-case">(Beslutsfattare)</span>
+                  </h4>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium mb-1 text-slate-600">Namn</label>
+                      <input name="ownerName" defaultValue={system.ownerName} className="w-full p-2 border border-slate-300 rounded-lg text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1 text-slate-600">AD-användarnamn</label>
+                      <input name="ownerUsername" defaultValue={system.ownerUsername} placeholder="t.ex. ann01and" className="w-full p-2 border border-slate-300 rounded-lg text-sm" />
+                    </div>
+                    <div className="col-span-2">
+                      <label className="block text-xs font-medium mb-1 text-slate-600">Email</label>
+                      <input name="ownerEmail" defaultValue={system.ownerEmail} className="w-full p-2 border border-slate-300 rounded-lg text-sm" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* SYSTEMFÖRVALTARE */}
+                <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-3">
+                  <h4 className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2">
+                    Systemförvaltare <span className="font-normal text-slate-400 normal-case">(Du / Requester)</span>
+                  </h4>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium mb-1 text-slate-600">Ditt Namn</label>
+                      <input name="managerName" defaultValue={system.managerName} className="w-full p-2 border border-slate-300 rounded-lg text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1 text-slate-600">Ditt AD-användarnamn</label>
+                      <input name="managerUsername" defaultValue={system.managerUsername} placeholder="t.ex. ens01den" className="w-full p-2 border border-slate-300 rounded-lg text-sm" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* ÖVRIGT */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-1 text-slate-700">Resursgrupp</label>
+                    <input name="resourceGroup" defaultValue={system.resourceGroup} className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1 text-slate-700">Status</label>
+                    <select name="status" defaultValue={system.status} className="w-full p-2.5 border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500 outline-none">
+                      <option value="ACTIVE">Aktiv Förvaltning</option>
+                      <option value="MAINTENANCE">Underhållsläge</option>
+                      <option value="RETIRED">Avvecklad</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-3 pt-4 border-t border-slate-50 mt-2">
+                  <button type="button" onClick={() => setIsSettingsOpen(false)} className="px-4 py-2 text-slate-600 font-medium hover:bg-slate-50 rounded-lg transition-colors">Avbryt</button>
+                  <button type="submit" className="px-6 py-2 bg-indigo-600 text-white font-medium rounded-lg flex items-center gap-2 hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition-all">
                     <Save size={18} /> Spara ändringar
                   </button>
                 </div>
@@ -893,8 +987,17 @@ export default function SystemDetail() {
       <ActionDrawer
         action={selectedAction}
         systemName={system.name}
+        managerUsername={system.managerUsername}
         isOpen={!!selectedAction}
         onClose={() => setSelectedAction(null)}
+      />
+      <FeedbackModal
+        isOpen={feedback.isOpen}
+        onClose={() => setFeedback({ ...feedback, isOpen: false })}
+        type={feedback.type}
+        title={feedback.title}
+        message={feedback.message}
+        details={feedback.details}
       />
     </div>
   );

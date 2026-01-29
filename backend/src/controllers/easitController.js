@@ -62,7 +62,8 @@ export const exportToEasit = async (req, res) => {
     const fullPath = path.join(targetDir, filename);
 
     // 5. Skriv filen
-    fs.writeFileSync(fullPath, csvContent, 'utf8');
+    const bom = '\uFEFF'; 
+    fs.writeFileSync(fullPath, bom + csvContent, 'utf8');
 
     console.log(`✅ CSV sparad till: ${fullPath}`);
     

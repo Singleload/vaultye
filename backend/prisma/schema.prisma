@@ -22,6 +22,11 @@ model SystemObject {
   description   String?
   ownerName     String
   ownerEmail    String
+  ownerUsername String?
+
+  managerName String?
+  managerUsername String?
+
   resourceGroup String?
   status        String    @default("ACTIVE")
   

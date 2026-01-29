@@ -49,7 +49,12 @@ export const getSystemById = async (req, res) => {
 
 // Skapa ett nytt system
 export const createSystem = async (req, res) => {
-  const { name, description, ownerName, ownerEmail, resourceGroup } = req.body;
+  const {
+    name, description,
+    ownerName, ownerEmail, ownerUsername,
+    managerName, managerUsername,
+    resourceGroup
+  } = req.body;
 
   try {
     const newSystem = await prisma.systemObject.create({
@@ -58,6 +63,9 @@ export const createSystem = async (req, res) => {
         description,
         ownerName,
         ownerEmail,
+        ownerUsername,
+        managerName,
+        managerUsername,
         resourceGroup
       }
     });
@@ -70,12 +78,22 @@ export const createSystem = async (req, res) => {
 
 export const updateSystem = async (req, res) => {
   const { id } = req.params;
-  const { name, description, ownerName, ownerEmail, resourceGroup, status } = req.body;
+  const {
+    name, description,
+    ownerName, ownerEmail, ownerUsername,
+    managerName, managerUsername,
+    resourceGroup, status
+  } = req.body;
 
   try {
     const updated = await prisma.systemObject.update({
       where: { id },
-      data: { name, description, ownerName, ownerEmail, resourceGroup, status }
+      data: {
+        name, description,
+        ownerName, ownerEmail, ownerUsername,
+        managerName, managerUsername,
+        resourceGroup, status
+      }
     });
     res.json(updated);
   } catch (error) {

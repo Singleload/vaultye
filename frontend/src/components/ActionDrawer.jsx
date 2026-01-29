@@ -10,7 +10,7 @@ const updateActionApi = async ({ id, data }) => {
   return res.data;
 };
 
-export default function ActionDrawer({ action, systemName, isOpen, onClose }) {
+export default function ActionDrawer({ action, systemName, managerUsername, isOpen, onClose }) {
   const queryClient = useQueryClient();
   const [formData, setFormData] = useState({});
 
@@ -75,7 +75,7 @@ export default function ActionDrawer({ action, systemName, isOpen, onClose }) {
     const payload = {
       externalId: action.id,
       system: systemName,
-      requester: action.assignedTo,
+      requester: managerUsername || "Okänd Förvaltare",
       dueDate: action.dueDate,
       title: action.title,
       description: formData.description, // Den utförliga beskrivningen från formuläret
