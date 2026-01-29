@@ -3,8 +3,9 @@ import { useParams } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import axios from 'axios';
 import { motion } from 'framer-motion';
-import { CheckCircle2, XCircle, AlertCircle, Loader2, ArrowRight } from 'lucide-react';
+import { CheckCircle2, XCircle, AlertCircle, Loader2 } from 'lucide-react';
 
+// --- API ---
 const fetchDecisionData = async (token) => {
     const res = await axios.get(`http://localhost:3000/api/decisions/${token}`);
     return res.data;
@@ -20,7 +21,7 @@ export default function DecisionPage() {
     const [submitted, setSubmitted] = useState(false);
     const [decisionType, setDecisionType] = useState(null); // 'APPROVED' | 'REJECTED'
 
-    const { data: point, isLoading, isError, error } = useQuery({
+    const { data: point, isLoading, isError } = useQuery({
         queryKey: ['decision', token],
         queryFn: () => fetchDecisionData(token),
         retry: false
@@ -34,131 +35,136 @@ export default function DecisionPage() {
         }
     });
 
-    const handleDecision = (decision) => {
-        mutation.mutate({ token, decision, comment });
-    };
-
-    if (isLoading) return <div className="min-h-screen flex items-center justify-center bg-slate-100"><Loader2 className="animate-spin text-slate-400" size={32} /></div>;
-
+    if (isLoading) return <div className="min-h-screen flex items-center justify-center bg-slate-50"><Loader2 className="animate-spin text-indigo-600" size={40} /></div>;
+    
     if (isError) return (
-        <div className="min-h-screen flex items-center justify-center bg-slate-100 p-4">
-            <div className="bg-white p-8 rounded-2xl shadow-sm text-center max-w-md">
-                <div className="w-16 h-16 bg-red-100 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <XCircle size={32} />
-                </div>
-                <h1 className="text-xl font-bold text-slate-800">Länken är ogiltig</h1>
-                <p className="text-slate-500 mt-2">{error.response?.data?.error || "Kunde inte hämta beslutsunderlaget. Länken kan ha gått ut eller redan använts."}</p>
+        <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
+            <div className="bg-white p-8 rounded-2xl shadow-xl text-center max-w-md">
+                <AlertCircle className="text-red-500 w-16 h-16 mx-auto mb-4" />
+                <h1 className="text-xl font-bold text-slate-900">Ogiltig länk</h1>
+                <p className="text-slate-500 mt-2">Denna länk är antingen ogiltig eller så har beslutet redan registrerats.</p>
             </div>
         </div>
     );
 
-    if (submitted) return (
-        <div className="min-h-screen flex items-center justify-center bg-slate-100 p-4">
-            <div className="bg-white p-8 rounded-2xl shadow-xl text-center max-w-md w-full">
-                <motion.div
-                    initial={{ scale: 0.8, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 ${decisionType === 'APPROVED' ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'}`}
+    if (submitted) {
+        return (
+            <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 relative overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-br from-indigo-50/50 to-white -z-10" />
+                
+                <motion.div 
+                    initial={{ scale: 0.9, opacity: 0 }} 
+                    animate={{ scale: 1, opacity: 1 }} 
+                    className="bg-white p-10 rounded-[2rem] shadow-2xl max-w-md w-full text-center border border-white/50"
                 >
-                    {decisionType === 'APPROVED' ? <CheckCircle2 size={40} /> : <XCircle size={40} />}
+                    <div className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 shadow-sm border-4 border-slate-50 ${decisionType === 'APPROVED' ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-500'}`}>
+                        {decisionType === 'APPROVED' ? <CheckCircle2 size={40} /> : <XCircle size={40} />}
+                    </div>
+                    <h1 className="text-3xl font-bold text-slate-900 mb-2 tracking-tight">
+                        {decisionType === 'APPROVED' ? 'Beslut Godkänt' : 'Beslut Avslaget'}
+                    </h1>
+                    <p className="text-slate-500 font-medium leading-relaxed">
+                        Tack för ditt svar. Systemförvaltaren har meddelats om ditt beslut.
+                    </p>
                 </motion.div>
-                <h1 className="text-2xl font-bold text-slate-900">
-                    {decisionType === 'APPROVED' ? 'Beslut registrerat: Godkänt' : 'Beslut registrerat: Avslag'}
-                </h1>
-                <p className="text-slate-500 mt-2">Tack! Systemförvaltaren har meddelats om ditt beslut.</p>
             </div>
-        </div>
-    );
+        );
+    }
 
     return (
-        <div className="min-h-screen bg-slate-100 py-12 px-4 sm:px-6">
-            <div className="max-w-2xl mx-auto space-y-6">
-
-                {/* Header */}
-                <div className="text-center mb-10">
-                    <div className="inline-flex items-center justify-center w-12 h-12 rounded-lg bg-indigo-600 text-white font-bold text-xl mb-4">W</div>
-                    <h2 className="text-3xl font-bold text-slate-900">Beslutsunderlag</h2>
-                    <p className="text-slate-500 mt-2">Waulty Systemförvaltning begär ditt beslut.</p>
+        <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4 relative">
+            <div className="absolute inset-0 bg-gradient-to-br from-slate-100 to-white -z-10" />
+            
+            <div className="max-w-2xl w-full">
+                {/* Header Logo Area */}
+                <div className="text-center mb-8">
+                    <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-indigo-600 text-white font-bold text-xl mb-4 shadow-lg shadow-indigo-200">W</div>
+                    <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Beslutsunderlag</h1>
+                    <p className="text-slate-500 font-medium">Från Waulty Core Platform</p>
                 </div>
 
-                {/* Card */}
-                <motion.div
-                    initial={{ y: 20, opacity: 0 }}
-                    animate={{ y: 0, opacity: 1 }}
-                    className="bg-white rounded-2xl shadow-xl overflow-hidden"
+                <motion.div 
+                    initial={{ y: 20, opacity: 0 }} 
+                    animate={{ y: 0, opacity: 1 }} 
+                    className="bg-white rounded-[2rem] shadow-xl shadow-slate-200/50 overflow-hidden border border-slate-100"
                 >
-                    <div className="p-8 border-b border-slate-100">
-                        <div className="flex items-center gap-2 text-sm text-indigo-600 font-bold uppercase tracking-wider mb-2">
-                            {point.dataType === 'UPGRADE' ? 'Systemuppgradering' : 'Förbättringsförslag'} • {point.system.name}
-                        </div>
-                        <h1 className="text-3xl font-bold text-slate-900 mb-4">{point.title}</h1>
-
-                        {/* SPECIFIKT FÖR UPGRADE */}
-                        {point.dataType === 'UPGRADE' && (
-                            <div className="mb-4 flex gap-4">
-                                <span className="bg-indigo-50 text-indigo-700 px-3 py-1 rounded-lg font-mono font-bold">v{point.version}</span>
-                                {point.downtime && <span className="bg-red-50 text-red-600 px-3 py-1 rounded-lg font-bold border border-red-100">Kräver Nertid</span>}
-                            </div>
-                        )}
-
-                        <p className="text-slate-600 leading-relaxed text-lg">{point.description}</p>
+                    {/* Card Header */}
+                    <div className="bg-slate-50/50 p-8 border-b border-slate-100 text-center">
+                        <span className="text-xs font-bold uppercase tracking-wider text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full mb-4 inline-block border border-indigo-100">
+                            Förfrågan
+                        </span>
+                        <h2 className="text-3xl font-bold text-slate-900 leading-tight mb-2">
+                            {point.title}
+                        </h2>
+                        <p className="text-slate-500 font-medium text-lg flex items-center justify-center gap-2">
+                            Gäller system: <span className="text-slate-800 font-bold">{point.system.name}</span>
+                        </p>
                     </div>
 
-                    {/* VISA OLIKA DATA BEROENDE PÅ TYP */}
-                    {point.dataType === 'UPGRADE' ? (
-                        <div className="p-8 bg-slate-50/50">
-                            <h4 className="font-bold text-slate-800 mb-2">Planering</h4>
-                            <p className="text-slate-600">
-                                Planerat datum: {point.plannedDate ? new Date(point.plannedDate).toLocaleDateString() : 'Ej satt'}
-                            </p>
-                            <p className="text-slate-500 text-sm mt-4">
-                                Godkännande av denna uppgradering innebär att teamet får mandat att påbörja arbetet enligt plan.
+                    <div className="p-8 space-y-8">
+                        
+                        {/* Description */}
+                        <div>
+                            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 ml-1">Beskrivning</h3>
+                            <p className="text-slate-700 text-lg leading-relaxed bg-slate-50 p-6 rounded-2xl border border-slate-100">
+                                {point.description}
                             </p>
                         </div>
-                    ) : (
-                        // DETTA ÄR FÖR PUNKTER (Som vi hade innan)
-                        <div className="p-8 bg-slate-50/50 grid grid-cols-1 md:grid-cols-2 gap-8">
-                            <div>
-                                <h4 className="font-bold text-slate-800 mb-2">Förväntad Nytta</h4>
-                                <p className="text-slate-600">{point.benefit || "-"}</p>
-                            </div>
-                            <div>
-                                <h4 className="font-bold text-slate-800 mb-2">Risker & Kostnad</h4>
-                                <p className="text-slate-600">Risk: {point.risk || "-"}</p>
-                                <p className="text-slate-600">Kostnad: {point.costEstimate || "-"}</p>
-                            </div>
+
+                        {/* Analysis Grid */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                           <div className="bg-emerald-50 p-6 rounded-2xl border border-emerald-100">
+                               <h3 className="text-xs font-bold text-emerald-700 uppercase tracking-wider mb-2">Förväntad Nytta</h3>
+                               <p className="text-emerald-900 font-medium text-lg leading-snug">
+                                   {point.benefit || 'Ej specificerad'}
+                               </p>
+                           </div>
+                           <div className="bg-amber-50 p-6 rounded-2xl border border-amber-100">
+                               <h3 className="text-xs font-bold text-amber-700 uppercase tracking-wider mb-2">Kostnadsuppskattning</h3>
+                               <p className="text-amber-900 font-bold text-2xl">
+                                   {point.costEstimate || '-'}
+                               </p>
+                           </div>
                         </div>
-                    )}
 
-                    {/* Actions */}
-                    <div className="p-8 bg-white border-t border-slate-100">
-                        <label className="block text-sm font-medium text-slate-700 mb-2">Lämna en kommentar (valfritt)</label>
-                        <textarea
-                            value={comment}
-                            onChange={(e) => setComment(e.target.value)}
-                            className="w-full p-3 border border-slate-300 rounded-lg mb-6 focus:ring-2 focus:ring-indigo-500 outline-none"
-                            placeholder="Motivering till beslutet..."
-                            rows="2"
-                        />
+                        {/* Comment Input */}
+                        <div className="pt-6 border-t border-slate-100">
+                            <label className="block text-sm font-bold text-slate-700 mb-2 ml-1">
+                                Kommentar (Valfritt)
+                            </label>
+                            <textarea 
+                                value={comment} 
+                                onChange={(e) => setComment(e.target.value)} 
+                                className="w-full p-4 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none resize-none bg-white focus:bg-slate-50 transition-all font-medium text-slate-700 placeholder:text-slate-400" 
+                                placeholder="Skriv en motivering till beslutet..." 
+                                rows="3"
+                            />
+                        </div>
 
-                        <div className="grid grid-cols-2 gap-4">
-                            <button
-                                onClick={() => handleDecision('REJECTED')}
-                                disabled={mutation.isPending}
-                                className="py-4 rounded-xl border-2 border-slate-200 text-slate-600 font-bold hover:bg-slate-50 hover:border-slate-300 transition-all"
+                        {/* Action Buttons */}
+                        <div className="grid grid-cols-2 gap-4 pt-2">
+                            <button 
+                                onClick={() => mutation.mutate({ token, decision: 'REJECTED', comment })} 
+                                disabled={mutation.isPending} 
+                                className="py-4 rounded-xl border-2 border-slate-200 text-slate-600 font-bold hover:bg-slate-50 hover:border-slate-300 transition-all active:scale-95 disabled:opacity-50"
                             >
                                 Avslå
                             </button>
-                            <button
-                                onClick={() => handleDecision('APPROVED')}
-                                disabled={mutation.isPending}
-                                className="py-4 rounded-xl bg-indigo-600 text-white font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition-all flex items-center justify-center gap-2"
+                            
+                            <button 
+                                onClick={() => mutation.mutate({ token, decision: 'APPROVED', comment })} 
+                                disabled={mutation.isPending} 
+                                className="py-4 rounded-xl bg-indigo-600 text-white font-bold hover:bg-indigo-700 shadow-xl shadow-indigo-200 transition-all flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50"
                             >
                                 {mutation.isPending ? <Loader2 className="animate-spin" /> : 'Godkänn Förslaget'}
                             </button>
                         </div>
                     </div>
                 </motion.div>
+                
+                <p className="text-center text-slate-400 text-xs mt-8 font-medium">
+                    © 2026 Waulty Core Platform
+                </p>
             </div>
         </div>
     );
