@@ -380,11 +380,7 @@ export default function PointDrawer({ point, isOpen, onClose }) {
                      <option value="NEW">Ny</option>
                      <option value="ASSESSED">Bedömd</option>
                      <option value="RECOMMENDED">Rekommenderad</option>
-                     <option value="PENDING_APPROVAL">Väntar på beslut</option>
-                     <option value="APPROVED">Godkänd</option>
                      <option value="REJECTED">Avfärdad</option>
-                     <option value="IN_PROGRESS">Pågående</option>
-                     <option value="DONE">Klar</option>
                    </select>
                  </div>
                </div>
