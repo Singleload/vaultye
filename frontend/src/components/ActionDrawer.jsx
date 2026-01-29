@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   X, Save, CheckSquare, Loader2, UploadCloud, Calendar, 
-  User, AlignLeft, FileText, CheckCircle2, Link2 
+  User, AlignLeft, FileText, CheckCircle2, Link2, 
+  ChevronDown, ChevronUp, AlertTriangle, TrendingUp, DollarSign 
 } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
@@ -24,6 +25,7 @@ const exportActionToEasitApi = async (payload) => {
 export default function ActionDrawer({ action, systemName, managerUsername, isOpen, onClose }) {
   const queryClient = useQueryClient();
   const [formData, setFormData] = useState({});
+  const [isPointDetailsOpen, setIsPointDetailsOpen] = useState(false);
   
   // Feedback state för Easit-exporten
   const [feedback, setFeedback] = useState({
@@ -46,6 +48,7 @@ export default function ActionDrawer({ action, systemName, managerUsername, isOp
         dueDate: action.dueDate ? action.dueDate.split('T')[0] : '', // Format YYYY-MM-DD
         startDate: action.startDate ? action.startDate.split('T')[0] : ''
       });
+      setIsPointDetailsOpen(false); // Stäng detaljerna varje gång en ny öppnas
     }
   }, [action]);
 
@@ -55,6 +58,7 @@ export default function ActionDrawer({ action, systemName, managerUsername, isOp
     mutationFn: updateActionApi,
     onSuccess: () => {
       queryClient.invalidateQueries(['system']);
+      // Vi stänger inte automatiskt här, användaren kanske vill jobba vidare
     }
   });
 
@@ -162,20 +166,76 @@ export default function ActionDrawer({ action, systemName, managerUsername, isOp
               {/* Scrollable Content */}
               <div className="flex-1 overflow-y-auto p-8 space-y-8 bg-slate-50/50">
                 
-                {/* --- ORIGIN POINT LINK (NYTT) --- */}
+                {/* --- ORIGIN POINT LINK (EXPANDABLE) --- */}
                 {action.point && (
-                  <div className="bg-blue-50/50 p-4 rounded-2xl border border-blue-100 flex items-start gap-3">
-                    <div className="mt-0.5 p-1.5 bg-blue-100 text-blue-600 rounded-lg shadow-sm">
-                      <Link2 size={16} />
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold text-blue-800 uppercase tracking-wider mb-0.5">
-                        Baserad på behov
-                      </p>
-                      <p className="text-slate-700 font-medium text-sm leading-snug">
-                        {action.point.title}
-                      </p>
-                    </div>
+                  <div className="bg-blue-50/50 rounded-2xl border border-blue-100 overflow-hidden transition-all">
+                    <button 
+                      onClick={() => setIsPointDetailsOpen(!isPointDetailsOpen)}
+                      className="w-full p-4 flex items-start gap-3 text-left hover:bg-blue-50 transition-colors outline-none"
+                    >
+                      <div className="mt-0.5 p-1.5 bg-blue-100 text-blue-600 rounded-lg shadow-sm">
+                        <Link2 size={16} />
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-xs font-bold text-blue-800 uppercase tracking-wider mb-0.5">
+                          Baserad på behov
+                        </p>
+                        <p className="text-slate-700 font-medium text-sm leading-snug">
+                          {action.point.title}
+                        </p>
+                      </div>
+                      <div className="text-blue-400 mt-1">
+                        {isPointDetailsOpen ? <ChevronUp size={18}/> : <ChevronDown size={18}/>}
+                      </div>
+                    </button>
+
+                    <AnimatePresence>
+                      {isPointDetailsOpen && (
+                        <motion.div 
+                          initial={{ height: 0, opacity: 0 }} 
+                          animate={{ height: 'auto', opacity: 1 }} 
+                          exit={{ height: 0, opacity: 0 }}
+                          className="px-4 pb-4 text-sm text-slate-600 space-y-4 border-t border-blue-100/50 pt-4"
+                        >
+                           <div>
+                             <span className="font-bold text-xs uppercase text-blue-800 block mb-1 flex items-center gap-1">
+                               <TrendingUp size={12}/> Beskrivning
+                             </span>
+                             <p className="leading-relaxed bg-white/50 p-3 rounded-xl border border-blue-100/50">
+                               {action.point.description || "Ingen beskrivning."}
+                             </p>
+                           </div>
+                           
+                           <div className="grid grid-cols-2 gap-4">
+                             <div>
+                               <span className="font-bold text-xs uppercase text-emerald-700 block mb-1 flex items-center gap-1">
+                                 <CheckCircle2 size={12}/> Nytta
+                               </span>
+                               <p className="bg-emerald-50/50 p-2 rounded-lg border border-emerald-100/50 text-emerald-900 text-xs">
+                                 {action.point.benefit || "-"}
+                               </p>
+                             </div>
+                             <div>
+                               <span className="font-bold text-xs uppercase text-amber-700 block mb-1 flex items-center gap-1">
+                                 <AlertTriangle size={12}/> Risk
+                               </span>
+                               <p className="bg-amber-50/50 p-2 rounded-lg border border-amber-100/50 text-amber-900 text-xs">
+                                 {action.point.risk || "-"}
+                               </p>
+                             </div>
+                           </div>
+
+                           <div>
+                             <span className="font-bold text-xs uppercase text-slate-500 block mb-1 flex items-center gap-1">
+                               <DollarSign size={12}/> Kostnad
+                             </span>
+                             <p className="font-bold text-slate-800">
+                               {action.point.costEstimate || "Ej angivet"}
+                             </p>
+                           </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                   </div>
                 )}
 
