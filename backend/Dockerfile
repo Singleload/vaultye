@@ -1,4 +1,8 @@
+# Vi använder Alpine för att hålla det litet
 FROM node:20-alpine
+
+# --- NYTT: Installera OpenSSL som Prisma kräver ---
+RUN apk add --no-cache openssl
 
 WORKDIR /app
 
@@ -9,11 +13,11 @@ RUN npm install
 # Kopiera källkod och prisma-mappen
 COPY . .
 
-# Generera Prisma Client så backend kan prata med databasen
+# Generera Prisma Client
 RUN npx prisma generate
 
 # Exponera porten
 EXPOSE 3000
 
-# Kör migreringar mot databasen och starta sedan servern
+# Kör migreringar och starta
 CMD ["sh", "-c", "npx prisma migrate deploy && npm start"]
