@@ -1,9 +1,15 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Save, AlertTriangle, CheckCircle, TrendingUp, DollarSign, Loader2, Trash2, Send, Calendar, User, PlayCircle, Lock } from 'lucide-react';
+import { 
+  X, Save, AlertTriangle, CheckCircle, TrendingUp, 
+  DollarSign, Loader2, Trash2, Send, PlayCircle, Lock, 
+  CheckCircle2 
+} from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
 import clsx from 'clsx';
+
+// --- API ---
 
 const sendDecisionRequestApi = async (id) => {
   const res = await axios.post(
@@ -17,7 +23,6 @@ const deletePointApi = async (id) => {
   await axios.delete(`http://localhost:3000/api/points/${id}`);
 };
 
-// Update API call
 const updatePointApi = async ({ id, data }) => {
   const res = await axios.patch(`http://localhost:3000/api/points/${id}`, data);
   return res.data;
@@ -32,58 +37,53 @@ export default function PointDrawer({ point, isOpen, onClose }) {
 
   // Lokalt state för formuläret
   const [formData, setFormData] = useState({});
+  const [isConfirmingSend, setIsConfirmingSend] = useState(false);
 
-  const [decisionLink, setDecisionLink] = useState(null);
-  // Statusar som låser punkten för redigering
-  const readOnlyStatuses = ['ASSESSED', 'PENDING_APPROVAL', 'APPROVED', 'REJECTED', 'DONE', 'IN_PROGRESS'];
-
-  // Är denna punkt låst?
-  const isReadOnly = point && readOnlyStatuses.includes(point.status);
-
-  // Fyll formuläret när en ny point öppnas
+  // Synka state när punkten öppnas
   useEffect(() => {
     if (point) {
       setFormData({
-        status: point.status || 'NEW',
-        relevance: point.relevance || 0,
-        feasibility: point.feasibility || 'MEDIUM',
-        benefit: point.benefit || '',
-        risk: point.risk || '',
-        costEstimate: point.costEstimate || '',
-        managerComment: point.managerComment || ''
+        title: point.title,
+        description: point.description,
+        benefit: point.benefit,
+        risk: point.risk,
+        costEstimate: point.costEstimate,
+        relevance: point.relevance || 3,
+        feasibility: point.feasibility,
+        status: point.status,
+        origin: point.origin,
+        priority: point.priority
       });
+      setIsConfirmingSend(false);
     }
   }, [point]);
+
+  // --- Mutations ---
 
   const mutation = useMutation({
     mutationFn: updatePointApi,
     onSuccess: () => {
-      queryClient.invalidateQueries(['system']); // Uppdatera listan i bakgrunden
+      queryClient.invalidateQueries(['system']);
       onClose();
     }
   });
-
-  const handleSave = () => {
-    mutation.mutate({ id: point.id, data: formData });
-  };
-
-  const handleChange = (field, value) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-  };
 
   const deleteMutation = useMutation({
     mutationFn: deletePointApi,
     onSuccess: () => {
       queryClient.invalidateQueries(['system']);
-      onClose(); // Stäng drawern
+      onClose();
     }
   });
 
-  const handleDelete = () => {
-    if (window.confirm('Är du säker på att du vill radera denna punkt permanent?')) {
-      deleteMutation.mutate(point.id);
+  const requestDecisionMutation = useMutation({
+    mutationFn: sendDecisionRequestApi,
+    onSuccess: () => {
+      alert('Förfrågan skickad till systemägaren!');
+      setIsConfirmingSend(false);
+      onClose();
     }
-  };
+  });
 
   const createActionMutation = useMutation({
     mutationFn: createActionApi,
@@ -93,383 +93,325 @@ export default function PointDrawer({ point, isOpen, onClose }) {
     }
   });
 
-  const handleCreateAction = (e) => {
-    e.preventDefault();
-    const fd = new FormData(e.target);
-    createActionMutation.mutate({
-      pointId: point.id,
-      title: point.title, // Vi ärver titeln som default
-      assignedTo: fd.get('assignedTo'),
-      startDate: fd.get('startDate'),
-      dueDate: fd.get('dueDate')
-    });
+  // --- Handlers ---
+
+  const handleSave = () => {
+    mutation.mutate({ id: point.id, data: formData });
   };
 
-  const [isConfirmingSend, setIsConfirmingSend] = useState(false); // För confirmation dialog
-
-  const sendDecisionMutation = useMutation({
-    mutationFn: sendDecisionRequestApi,
-    onSuccess: (data) => {
-      setDecisionLink(data.link);
-      queryClient.invalidateQueries(['system']);
-      setIsConfirmingSend(false);
-    }
-  });
-
-  const handleSendRequest = () => {
-    // Trigga mutationen
-    sendDecisionMutation.mutate(point.id);
+  const handleChange = (field, value) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
   };
+
+  // --- Logic for ReadOnly ---
+  // Dessa statusar låser formuläret för redigering
+  const readOnlyStatuses = ['ASSESSED', 'PENDING_APPROVAL', 'APPROVED', 'REJECTED', 'DONE', 'IN_PROGRESS'];
+  const isReadOnly = point && readOnlyStatuses.includes(point.status);
 
   return (
     <AnimatePresence>
       {isOpen && point && (
         <>
           {/* Backdrop */}
-          <motion.div
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            onClick={onClose}
-            className="fixed inset-0 bg-black/20 backdrop-blur-sm z-40"
+          <motion.div 
+            initial={{ opacity: 0 }} 
+            animate={{ opacity: 1 }} 
+            exit={{ opacity: 0 }} 
+            onClick={onClose} 
+            className="fixed inset-0 bg-black/30 backdrop-blur-sm z-40" 
           />
-
+          
           {/* Drawer Panel */}
-          <motion.div
-            initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }}
-            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className="fixed inset-y-0 right-0 w-full max-w-2xl bg-white shadow-2xl z-50 flex flex-col border-l border-slate-200"
+          <motion.div 
+            initial={{ x: '100%' }} 
+            animate={{ x: 0 }} 
+            exit={{ x: '100%' }} 
+            transition={{ type: 'spring', damping: 25, stiffness: 200 }} 
+            className="fixed inset-y-0 right-0 w-full max-w-2xl bg-white shadow-2xl z-50 flex flex-col border-l border-white/50"
           >
+            
             {/* Header */}
-            <div className="p-6 border-b border-slate-100 flex justify-between items-start bg-slate-50/50">
-              <div>
-                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                  {point.origin} • {new Date(point.createdAt).toLocaleDateString()}
-                </span>
-                <h2 className="text-2xl font-bold text-slate-800 mt-1">{point.title}</h2>
+            <div className="p-8 pb-4 border-b border-slate-100 flex justify-between items-start bg-white z-10">
+              <div className="flex-1 mr-8">
+                <div className="flex items-center gap-3 mb-3">
+                  {/* Origin Select */}
+                  <select 
+                    disabled={isReadOnly}
+                    value={formData.origin || 'Verksamhet'}
+                    onChange={(e) => handleChange('origin', e.target.value)}
+                    className="text-xs font-bold text-slate-500 uppercase tracking-wider bg-slate-50 px-2 py-1 rounded-md border border-slate-100 outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <option value="Verksamhet">Verksamhet</option>
+                    <option value="IT">IT</option>
+                    <option value="Leverantör">Leverantör</option>
+                    <option value="Möte">Möte</option>
+                  </select>
+
+                  {/* Priority Select */}
+                  <select 
+                     disabled={isReadOnly}
+                     value={formData.priority || 'MEDIUM'}
+                     onChange={(e) => handleChange('priority', e.target.value)}
+                     className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider outline-none border focus:ring-2 focus:ring-indigo-500 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+                        formData.priority === 'CRITICAL' ? 'bg-red-50 text-red-700 border-red-100' : 
+                        formData.priority === 'HIGH' ? 'bg-orange-50 text-orange-700 border-orange-100' :
+                        'bg-slate-50 text-slate-600 border-slate-100'
+                     }`}
+                  >
+                    <option value="LOW">Låg Prio</option>
+                    <option value="MEDIUM">Medium</option>
+                    <option value="HIGH">Hög Prio</option>
+                    <option value="CRITICAL">Kritisk</option>
+                  </select>
+                </div>
+                
+                {/* Title Input */}
+                <input 
+                  disabled={isReadOnly} 
+                  value={formData.title || ''} 
+                  onChange={(e) => handleChange('title', e.target.value)} 
+                  className="text-3xl font-bold text-slate-900 bg-transparent border-none p-0 focus:ring-0 w-full placeholder:text-slate-300 leading-tight disabled:text-slate-600" 
+                  placeholder="Rubrik..." 
+                />
               </div>
-              <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full transition-colors text-slate-500">
+              <button 
+                onClick={onClose} 
+                className="p-2 hover:bg-slate-100 rounded-full text-slate-400 transition-colors"
+              >
                 <X size={24} />
               </button>
             </div>
 
             {/* Scrollable Content */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-8">
-
-              {/* Original Description */}
-              <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
-                <h4 className="text-sm font-bold text-slate-700 mb-2">Ursprunglig beskrivning</h4>
-                <p className="text-slate-600 leading-relaxed text-sm">
-                  {point.description}
-                </p>
-              </div>
-
-              {/* Assessment Section */}
-              <div>
-                <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
-                  <TrendingUp className="text-indigo-600" size={20} />
-                  Förvaltarens Analys
-                </h3>
-
-                <div className="grid grid-cols-2 gap-6 mb-6">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">Relevans (1-5)</label>
-                    <div className="flex gap-2">
-                      {[1, 2, 3, 4, 5].map((score) => (
-                        <button
-                          disabled={isReadOnly}
-                          key={score}
-                          onClick={() => !isReadOnly && handleChange('relevance', score)}
-                          className={clsx(
-                            "w-10 h-10 rounded-lg font-bold transition-all",
-                            formData.relevance === score
-                              ? "bg-indigo-600 text-white shadow-md scale-105"
-                              : "bg-slate-100 text-slate-500 hover:bg-slate-200"
-                          )}
-                        >
-                          {score}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">Genomförbarhet</label>
-                    <select
-                      disabled={isReadOnly}
-                      value={formData.feasibility}
-                      onChange={(e) => handleChange('feasibility', e.target.value)}
-                      className="w-full px-4 py-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none bg-white"
+            <div className="flex-1 overflow-y-auto p-8 space-y-8 bg-slate-50/50">
+               
+               {/* ACTION CREATION BLOCK (Endast om Approved - notera att Approved är ReadOnly för själva punkten, men man måste kunna skapa Action) */}
+               {point.status === 'APPROVED' && !point.action && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 10 }} 
+                    animate={{ opacity: 1, y: 0 }}
+                    className="bg-emerald-50/80 p-6 rounded-[1.5rem] border border-emerald-100 shadow-sm"
+                  >
+                    <h3 className="text-lg font-bold text-emerald-900 mb-4 flex items-center gap-2">
+                      <CheckCircle className="text-emerald-600" /> Beslut Godkänt! Planera Åtgärd
+                    </h3>
+                    <form 
+                      onSubmit={(e) => { 
+                        e.preventDefault(); 
+                        const fd = new FormData(e.target); 
+                        createActionMutation.mutate({ 
+                          pointId: point.id, 
+                          title: point.title, 
+                          assignedTo: fd.get('assignedTo'), 
+                          startDate: fd.get('startDate'), 
+                          dueDate: fd.get('dueDate') 
+                        }); 
+                      }} 
+                      className="space-y-4"
                     >
-                      <option value="EASY">Enkel (Låg insats)</option>
-                      <option value="MEDIUM">Medium (Kräver utredning)</option>
-                      <option value="HARD">Svår (Projektform)</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Förväntad Nytta</label>
-                    <textarea
-                      disabled={isReadOnly}
-                      rows="2"
-                      value={formData.benefit}
-                      onChange={(e) => handleChange('benefit', e.target.value)}
-                      className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
-                      placeholder="Vad tjänar verksamheten på detta?"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Risker</label>
-                      <div className="relative">
-                        <AlertTriangle size={16} className="absolute left-3 top-3 text-amber-500" />
-                        <input
-                          disabled={isReadOnly}
-                          value={formData.risk}
-                          onChange={(e) => handleChange('risk', e.target.value)}
-                          className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-amber-500 outline-none"
-                          placeholder="Finns det risker?"
-                        />
+                      <div>
+                        <label className="text-xs font-bold text-emerald-800 uppercase tracking-wider ml-1">Ansvarig</label>
+                        <input name="assignedTo" required className="w-full p-3 rounded-xl border border-emerald-200 focus:ring-2 focus:ring-emerald-500 outline-none mt-1 bg-white font-medium" placeholder="Namn på ansvarig"/>
                       </div>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Kostnadsuppskattning</label>
-                      <div className="relative">
-                        <DollarSign size={16} className="absolute left-3 top-3 text-slate-400" />
-                        <input
-                          disabled={isReadOnly}
-                          value={formData.costEstimate}
-                          onChange={(e) => handleChange('costEstimate', e.target.value)}
-                          className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none"
-                          placeholder="t.ex. 20 timmar"
-                        />
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="text-xs font-bold text-emerald-800 uppercase tracking-wider ml-1">Startdatum</label>
+                          <input name="startDate" type="date" className="w-full p-3 rounded-xl border border-emerald-200 mt-1 bg-white font-medium"/>
+                        </div>
+                        <div>
+                          <label className="text-xs font-bold text-emerald-800 uppercase tracking-wider ml-1">Slutdatum</label>
+                          <input name="dueDate" type="date" className="w-full p-3 rounded-xl border border-emerald-200 mt-1 bg-white font-medium"/>
+                        </div>
                       </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
+                      <button 
+                        type="submit" 
+                        disabled={createActionMutation.isPending} 
+                        className="w-full py-3.5 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 shadow-lg shadow-emerald-200 flex justify-center gap-2 transition-all active:scale-95"
+                      >
+                        {createActionMutation.isPending ? <Loader2 className="animate-spin"/> : <PlayCircle size={20}/>} 
+                        Skapa Åtgärd
+                      </button>
+                    </form>
+                  </motion.div>
+               )}
 
-              {/* Action Section */}
-              <div className="bg-indigo-50/50 p-6 rounded-xl border border-indigo-100">
-                <h3 className="text-lg font-bold text-slate-900 mb-4">Rekommendation</h3>
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">Sätt status</label>
-                    <div className="grid grid-cols-3 gap-3">
-                      {['NEW', 'ASSESSED', 'RECOMMENDED', 'REJECTED'].map((status) => (
-                        <button
-                          disabled={isReadOnly}
-                          key={status}
-                          onClick={() => !isReadOnly && handleChange('status', status)}
-                          className={clsx(
-                            "py-2 px-3 rounded-lg text-sm font-medium border transition-all",
-                            formData.status === status
-                              ? "bg-white border-indigo-500 text-indigo-700 shadow-sm ring-1 ring-indigo-500"
-                              : "bg-white/50 border-transparent text-slate-600 hover:bg-white"
-                          )}
-                        >
-                          {status === 'NEW' ? 'Ny' :
-                            status === 'ASSESSED' ? 'Bedömd' :
-                              status === 'RECOMMENDED' ? 'Rekommendera' : 'Avfärda'}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Dina kommentarer (Interna)</label>
-                    <textarea
-                      disabled={isReadOnly}
-                      rows="2"
-                      value={formData.managerComment}
-                      onChange={(e) => handleChange('managerComment', e.target.value)}
-                      className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none"
-                      placeholder="Noteringar till dig själv eller systemägaren..."
-                    />
-                  </div>
-                </div>
-              </div>
+               {/* MAIN DESCRIPTION */}
+               <div className="bg-white p-6 rounded-[1.5rem] border border-slate-100 shadow-sm space-y-6">
+                 <div>
+                   <label className="flex items-center gap-2 text-sm font-bold text-slate-700 mb-2">
+                     <TrendingUp size={16} className="text-indigo-500"/> Beskrivning
+                   </label>
+                   <textarea 
+                     disabled={isReadOnly} 
+                     rows="4" 
+                     value={formData.description || ''} 
+                     onChange={(e) => handleChange('description', e.target.value)} 
+                     className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all disabled:opacity-60 disabled:bg-slate-50 font-medium text-slate-700 leading-relaxed resize-none" 
+                     placeholder="Beskriv behovet utförligt..."
+                   />
+                 </div>
+                 
+                 <div className="grid grid-cols-2 gap-6">
+                   <div>
+                     <label className="flex items-center gap-2 text-sm font-bold text-slate-700 mb-2">
+                       <CheckCircle size={16} className="text-emerald-500"/> Nytta / Effekt
+                     </label>
+                     <textarea 
+                       disabled={isReadOnly} 
+                       rows="3" 
+                       value={formData.benefit || ''} 
+                       onChange={(e) => handleChange('benefit', e.target.value)} 
+                       className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all disabled:opacity-60 disabled:bg-slate-50 font-medium resize-none"
+                       placeholder="Vad vinner vi?"
+                     />
+                   </div>
+                   <div>
+                     <label className="flex items-center gap-2 text-sm font-bold text-slate-700 mb-2">
+                       <AlertTriangle size={16} className="text-amber-500"/> Risker
+                     </label>
+                     <textarea 
+                       disabled={isReadOnly} 
+                       rows="3" 
+                       value={formData.risk || ''} 
+                       onChange={(e) => handleChange('risk', e.target.value)} 
+                       className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all disabled:opacity-60 disabled:bg-slate-50 font-medium resize-none"
+                       placeholder="Vad kan gå fel?"
+                     />
+                   </div>
+                 </div>
+               </div>
 
+               {/* ANALYSIS BOX */}
+               <div className="bg-white p-6 rounded-[1.5rem] border border-slate-100 shadow-sm space-y-6">
+                 <h3 className="font-bold text-slate-900 text-lg">Analys & Bedömning</h3>
+                 
+                 <div className="grid grid-cols-2 gap-8">
+                   <div>
+                     <label className="block text-xs font-bold text-slate-400 uppercase mb-3">Relevans (1-5)</label>
+                     <div className="flex gap-2">
+                       {[1, 2, 3, 4, 5].map((score) => (
+                         <button 
+                           key={score} 
+                           disabled={isReadOnly} 
+                           onClick={() => handleChange('relevance', score)} 
+                           className={clsx(
+                             "h-10 w-10 rounded-xl font-bold transition-all flex items-center justify-center", 
+                             formData.relevance === score 
+                               ? "bg-indigo-600 text-white shadow-lg shadow-indigo-200 scale-110" 
+                               : "bg-slate-50 text-slate-400 hover:bg-slate-100 border border-slate-200",
+                             isReadOnly && "cursor-not-allowed opacity-50 bg-slate-50"
+                           )}
+                         >
+                           {score}
+                         </button>
+                       ))}
+                     </div>
+                   </div>
+                   
+                   <div>
+                     <label className="block text-xs font-bold text-slate-400 uppercase mb-3">Genomförbarhet</label>
+                     <select 
+                       disabled={isReadOnly} 
+                       value={formData.feasibility || ''} 
+                       onChange={(e) => handleChange('feasibility', e.target.value)} 
+                       className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none font-medium text-slate-700 disabled:opacity-60 h-10"
+                     >
+                       <option value="">Välj...</option>
+                       <option value="EASY">Enkel</option>
+                       <option value="MEDIUM">Medium</option>
+                       <option value="HARD">Komplex</option>
+                     </select>
+                   </div>
+                 </div>
+                 
+                 <div>
+                   <label className="flex items-center gap-2 text-sm font-bold text-slate-700 mb-2">
+                     <DollarSign size={16} className="text-slate-400"/> Kostnadsuppskattning
+                   </label>
+                   <input 
+                     disabled={isReadOnly} 
+                     value={formData.costEstimate || ''} 
+                     onChange={(e) => handleChange('costEstimate', e.target.value)} 
+                     className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl outline-none font-medium disabled:opacity-60 disabled:bg-slate-50" 
+                     placeholder="t.ex. 50 000 kr"
+                   />
+                 </div>
+
+                 {/* Status (Manual Override) */}
+                 <div>
+                   <label className="flex items-center gap-2 text-sm font-bold text-slate-700 mb-2">
+                     <TrendingUp size={16} className="text-slate-400"/> Status (Manuell ändring)
+                   </label>
+                   <select 
+                     disabled={isReadOnly}
+                     value={formData.status || 'NEW'}
+                     onChange={(e) => handleChange('status', e.target.value)}
+                     className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl outline-none font-medium disabled:opacity-60 disabled:bg-slate-50"
+                   >
+                     <option value="NEW">Ny</option>
+                     <option value="ASSESSED">Bedömd</option>
+                     <option value="RECOMMENDED">Rekommenderad</option>
+                     <option value="REJECTED">Avfärdad</option>        
+                   </select>
+                 </div>
+               </div>
             </div>
 
-            {point.status === 'APPROVED' && !point.action && (
-              <div className="bg-emerald-50 p-6 rounded-xl border border-emerald-100 mt-6">
-                <h3 className="text-lg font-bold text-emerald-900 mb-4 flex items-center gap-2">
-                  <CheckCircle className="text-emerald-600" /> Beslut Godkänt! Planera Åtgärd
-                </h3>
-
-                <form onSubmit={handleCreateAction} className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-emerald-800 mb-1">Tilldela till (Ansvarig)</label>
-                    <div className="relative">
-                      <User size={16} className="absolute left-3 top-3 text-emerald-600" />
-                      <input name="assignedTo" required className="w-full pl-10 p-2 rounded-lg border border-emerald-200 focus:ring-2 focus:ring-emerald-500 outline-none" placeholder="Namn på ansvarig" />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-emerald-800 mb-1">Startdatum</label>
-                      <input name="startDate" type="date" required className="w-full p-2 rounded-lg border border-emerald-200 focus:ring-2 focus:ring-emerald-500" />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-emerald-800 mb-1">Slutdatum</label>
-                      <input name="dueDate" type="date" required className="w-full p-2 rounded-lg border border-emerald-200 focus:ring-2 focus:ring-emerald-500" />
-                    </div>
-                  </div>
-
-                  <button
-                    type="submit"
-                    disabled={createActionMutation.isPending}
-                    className="w-full py-3 bg-emerald-600 text-white font-bold rounded-lg hover:bg-emerald-700 shadow-md transition-all flex justify-center items-center gap-2"
-                  >
-                    {createActionMutation.isPending ? <Loader2 className="animate-spin" /> : <PlayCircle size={20} />}
-                    Skapa Åtgärd & Starta
-                  </button>
-                </form>
-              </div>
-            )}
-
-            {/* Om Action redan finns */}
-            {point.action && (
-              <div className="bg-slate-100 p-6 rounded-xl border border-slate-200 mt-6">
-                <h3 className="font-bold text-slate-700 mb-2">Pågående Åtgärd</h3>
-                <p className="text-sm text-slate-600">Ansvarig: {point.action.assignedTo}</p>
-                <p className="text-sm text-slate-600">Deadline: {new Date(point.action.dueDate).toLocaleDateString()}</p>
-                <div className="mt-3 inline-block px-3 py-1 bg-white rounded border border-slate-300 text-xs font-bold">
-                  Status: {point.action.status}
-                </div>
-              </div>
-            )}
-
-            {/* Footer */}
-            {decisionLink && (
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex items-start gap-3"
-              >
-                <CheckCircle className="text-emerald-600 mt-0.5" size={20} />
-
-                <div className="flex-1">
-                  <p className="text-sm font-bold text-emerald-800">
-                    Beslutsförfrågan skickad
-                  </p>
-                  <p className="text-xs text-emerald-700 mb-2">
-                    Kopiera länken nedan för test eller felsökning
-                  </p>
-
-                  <div className="flex items-center gap-2">
-                    <input
-                      readOnly
-                      value={decisionLink}
-                      className="flex-1 px-3 py-1.5 text-xs rounded-lg border border-emerald-300 bg-white font-mono"
-                    />
-                    <button
-                      onClick={() => navigator.clipboard.writeText(decisionLink)}
-                      className="px-3 py-1.5 text-xs font-bold bg-emerald-600 text-white rounded-lg hover:bg-emerald-700"
-                    >
-                      Kopiera
-                    </button>
-                  </div>
-                </div>
-              </motion.div>
-            )}
-
-            <div className="p-6 border-t border-slate-100 bg-white flex justify-between items-center">
-              {isConfirmingSend ? (
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-                  className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex flex-col gap-3"
-                >
-                  <div className="flex items-start gap-3">
-                    <AlertTriangle className="text-amber-600 shrink-0" size={20} />
-                    <div>
-                      <h4 className="font-bold text-amber-800 text-sm">Är du säker?</h4>
-                      <p className="text-amber-700 text-xs mt-1">
-                        Detta skickar ett mail till systemägaren med en länk för att godkänna eller avslå denna punkt.
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex justify-end gap-3 mt-2">
-                    <button
-                      onClick={() => setIsConfirmingSend(false)}
-                      className="px-3 py-1.5 text-xs font-bold text-slate-500 hover:text-slate-800"
-                    >
-                      Avbryt
-                    </button>
-                    <button
-                      onClick={handleSendRequest}
-                      disabled={sendDecisionMutation.isPending}
-                      className="px-4 py-1.5 bg-amber-600 text-white rounded-lg text-xs font-bold hover:bg-amber-700 flex items-center gap-2"
-                    >
-                      {sendDecisionMutation.isPending ? <Loader2 className="animate-spin" size={14} /> : <Send size={14} />}
-                      Ja, skicka förfrågan
-                    </button>
-                  </div>
-                </motion.div>
-              ) : (
-                /* NORMAL FOOTER MODE */
-                <div className="flex justify-between items-center">
-                  {/* RADERA KNAPP - Spärrad om beslut är taget */}
-                  {(point.status === 'APPROVED' || point.status === 'REJECTED' || point.status === 'IN_PROGRESS' || point.status === 'DONE') ? (
-                    <div title="Kan ej radera punkter med beslut" className="text-slate-300 p-2 cursor-not-allowed">
-                      <Trash2 size={20} />
-                    </div>
-                  ) : (
-                    <button
-                      onClick={handleDelete}
-                      className="text-red-500 hover:text-red-700 p-2 hover:bg-red-50 rounded-lg transition-colors"
+            {/* Footer Actions */}
+            <div className="p-6 border-t border-slate-100 bg-white z-10 shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.1)]">
+               {isReadOnly ? (
+                 <div className="flex items-center justify-between text-slate-500 bg-slate-50 px-4 py-3 rounded-xl border border-slate-100">
+                   <div className="flex items-center gap-2">
+                     <Lock size={16} /> 
+                     <span>Låst av status: <strong className="text-slate-700">{point.status}</strong></span>
+                   </div>
+                   <button onClick={onClose} className="font-bold text-slate-600 hover:text-slate-900">Stäng</button>
+                 </div>
+               ) : (
+                 <div className="flex justify-between items-center gap-4">
+                   
+                    {/* Delete Button */}
+                    <button 
+                      onClick={() => { if(confirm('Är du säker på att du vill radera denna punkt permanent?')) deleteMutation.mutate(point.id) }} 
+                      className="p-3.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors border border-transparent hover:border-red-100"
                       title="Radera punkt"
                     >
                       <Trash2 size={20} />
                     </button>
-                  )}
 
-                  <div className="flex gap-3">
-                    {/* SYSTEMFÖRVALTARENS KNAPPAR */}
-                    {/* Visa endast om status INTE redan är godkänd/nekad */}
-                    {point.status !== 'APPROVED' && point.status !== 'REJECTED' && point.status !== 'IN_PROGRESS' && point.status !== 'DONE' && (
-                      <>
-                        {/* Alternativ 1: Begär av ägare */}
-                        <button
-                          onClick={() => setIsConfirmingSend(true)}
-                          className="px-4 py-2.5 bg-amber-100 text-amber-800 font-medium rounded-xl hover:bg-amber-200 transition-colors flex items-center gap-2"
-                        >
-                          <Send size={18} />
-                          <span className="hidden sm:inline">Begär beslut</span>
-                        </button>
-
-                        {/* Alternativ 2: Godkänn själv (NY!) */}
-                        <button
-                          onClick={() => {
-                            // Sätt status till APPROVED direkt via update-mutationen
-                            mutation.mutate({ id: point.id, data: { ...formData, status: 'APPROVED' } });
-                          }}
-                          className="px-4 py-2.5 bg-emerald-100 text-emerald-800 font-medium rounded-xl hover:bg-emerald-200 transition-colors flex items-center gap-2"
-                        >
-                          <CheckCircle size={18} />
-                          <span className="hidden sm:inline">Godkänn direkt</span>
-                        </button>
-                      </>
-                    )}
-
-                    <button onClick={onClose} className="px-6 py-2.5 text-slate-600 font-medium hover:bg-slate-50 rounded-xl transition-colors">
-                      Avbryt
-                    </button>
-
-                    {/* Spara-knappen (visas alltid för att spara textändringar etc) */}
-                    <button
-                      onClick={handleSave}
-                      disabled={mutation.isPending}
-                      className="px-6 py-2.5 bg-indigo-600 text-white font-medium rounded-xl hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition-all flex items-center gap-2 active:scale-95 disabled:opacity-70"
-                    >
-                      {mutation.isPending ? <Loader2 className="animate-spin" size={20} /> : <Save size={20} />}
-                      Spara
-                    </button>
-                  </div>
-                </div>
-              )}
+                    <div className="flex gap-3">
+                      
+                      {/* Workflow Buttons: Endast om status inte är NEW/RECOMMENDED */}
+                      <button 
+                        onClick={() => setIsConfirmingSend(true)} 
+                        className="px-5 py-3 bg-amber-50 text-amber-700 font-bold rounded-xl hover:bg-amber-100 transition-colors flex items-center gap-2 border border-amber-100"
+                      >
+                        <Send size={18} /> 
+                        <span className="hidden sm:inline">Begär beslut</span>
+                      </button>
+                      
+                      <button 
+                        onClick={() => {
+                          if(confirm('Godkänn direkt utan systemägare?')) mutation.mutate({ id: point.id, data: { ...formData, status: 'APPROVED' } });
+                        }} 
+                        className="px-5 py-3 bg-emerald-50 text-emerald-700 font-bold rounded-xl hover:bg-emerald-100 transition-colors flex items-center gap-2 border border-emerald-100"
+                      >
+                        <CheckCircle2 size={18} /> 
+                        <span className="hidden sm:inline">Godkänn direkt</span>
+                      </button>
+                      
+                      {/* Save Button */}
+                      <button 
+                        onClick={handleSave} 
+                        disabled={mutation.isPending} 
+                        className="px-8 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition-all flex items-center gap-2 active:scale-95 disabled:opacity-70"
+                      >
+                        {mutation.isPending ? <Loader2 className="animate-spin" size={20} /> : <Save size={20} />} 
+                        Spara
+                      </button>
+                    </div>
+                 </div>
+               )}
             </div>
           </motion.div>
         </>

@@ -1,212 +1,326 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Save, Send, CheckSquare, Loader2, ArrowUpRight } from 'lucide-react';
+import { 
+  X, Save, CheckSquare, Loader2, UploadCloud, Calendar, 
+  User, AlignLeft, FileText, CheckCircle2, Link2 
+} from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import FeedbackModal from './FeedbackModal';
 import axios from 'axios';
+import clsx from 'clsx';
+import FeedbackModal from './FeedbackModal';
+
+// --- API ---
 
 const updateActionApi = async ({ id, data }) => {
   const res = await axios.patch(`http://localhost:3000/api/actions/${id}`, data);
   return res.data;
 };
 
+const exportActionToEasitApi = async (payload) => {
+  const res = await axios.post('http://localhost:3000/api/easit/export', payload);
+  return res.data;
+};
+
 export default function ActionDrawer({ action, systemName, managerUsername, isOpen, onClose }) {
   const queryClient = useQueryClient();
   const [formData, setFormData] = useState({});
-
+  
+  // Feedback state för Easit-exporten
   const [feedback, setFeedback] = useState({
     isOpen: false,
-    type: 'success', // 'success' | 'error'
+    type: 'success',
     title: '',
     message: '',
     details: ''
   });
 
+  // Synka state vid öppning
   useEffect(() => {
     if (action) {
       setFormData({
+        title: action.title,
         description: action.description || '',
         notes: action.notes || '',
-        status: action.status
+        status: action.status,
+        assignedTo: action.assignedTo || '',
+        dueDate: action.dueDate ? action.dueDate.split('T')[0] : '', // Format YYYY-MM-DD
+        startDate: action.startDate ? action.startDate.split('T')[0] : ''
       });
     }
   }, [action]);
+
+  // --- Mutations ---
 
   const mutation = useMutation({
     mutationFn: updateActionApi,
     onSuccess: () => {
       queryClient.invalidateQueries(['system']);
-      onClose();
     }
   });
 
-  const handleSave = () => {
-    mutation.mutate({ id: action.id, data: formData });
-  };
-
   const easitMutation = useMutation({
-    mutationFn: async (payload) => {
-      const res = await axios.post('http://localhost:3000/api/easit/export', payload);
-      return res.data;
-    },
+    mutationFn: exportActionToEasitApi,
     onSuccess: (data) => {
       setFeedback({
         isOpen: true,
         type: 'success',
-        title: 'Export Lyckades!',
-        message: 'Ärendet har skickats till Easit och en CSV-fil har genererats på servern.',
-        details: `Fil: ${data.path}`
+        title: 'Export lyckades',
+        message: 'Åtgärden har skickats till Easit.',
+        details: `Fil sparad: ${data.path}`
       });
     },
     onError: (error) => {
-      console.error(error);
       setFeedback({
         isOpen: true,
         type: 'error',
-        title: 'Export Misslyckades',
-        message: 'Något gick fel vid exporten till Easit. Kontrollera serverloggarna eller försök igen.',
-        details: error.response?.data?.error || error.message
+        title: 'Export misslyckades',
+        message: 'Kunde inte skapa CSV-filen.',
+        details: error.message
       });
     }
   });
 
+  // --- Handlers ---
+
+  const handleSave = () => {
+    mutation.mutate({ id: action.id, data: formData });
+    onClose(); 
+  };
+
+  const handleChange = (field, value) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
   const handleSendToEasit = () => {
-    // 1. Skapa payloaden
     const payload = {
-      externalId: action.id,
-      system: systemName,
-      requester: managerUsername || "Okänd Förvaltare",
-      dueDate: action.dueDate,
-      title: action.title,
-      description: formData.description, // Den utförliga beskrivningen från formuläret
-      originalPointId: action.point?.id
+      externalId: action.id, 
+      system: systemName, 
+      requester: managerUsername || "Okänd Förvaltare", 
+      dueDate: formData.dueDate,
+      title: formData.title,
+      description: `Beskrivning: ${formData.description}\n\nAnteckningar: ${formData.notes}`,
+      originalPointId: action.pointId
     };
-
-    // 2. Logga frontend (enligt krav)
-    console.group("🚀 Skickar till Backend (för CSV-konvertering)");
-    console.log(JSON.stringify(payload, null, 2));
-    console.groupEnd();
-
-    // 3. Skicka till backend
     easitMutation.mutate(payload);
   };
 
+  const isDone = formData.status === 'DONE';
+
   return (
-    <AnimatePresence>
-      {isOpen && action && (
-        <>
-          <motion.div
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            onClick={onClose}
-            className="fixed inset-0 bg-black/20 backdrop-blur-sm z-40"
-          />
-          <motion.div
-            initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }}
-            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className="fixed inset-y-0 right-0 w-full max-w-2xl bg-white shadow-2xl z-50 flex flex-col border-l border-slate-200"
-          >
-            {/* Header */}
-            <div className="p-6 border-b border-slate-100 flex justify-between items-start bg-slate-50/50">
-              <div>
-                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                  Åtgärd • {action.assignedTo}
-                </span>
-                <h2 className="text-2xl font-bold text-slate-800 mt-1">{action.title}</h2>
-              </div>
-              <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full text-slate-500">
-                <X size={24} />
-              </button>
-            </div>
-
-            {/* Content */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-8">
-
-              {/* Original Point Info */}
-              {action.point && (
-                <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
-                  <h4 className="text-sm font-bold text-blue-800 mb-1 flex items-center gap-2">
-                    <ArrowUpRight size={16} /> Baserat på behov
-                  </h4>
-                  <p className="text-blue-900 font-medium">{action.point.title}</p>
-                  <p className="text-blue-700 text-sm mt-1">{action.point.description}</p>
+    <>
+      <AnimatePresence>
+        {isOpen && action && (
+          <>
+            {/* Backdrop */}
+            <motion.div 
+              initial={{ opacity: 0 }} 
+              animate={{ opacity: 1 }} 
+              exit={{ opacity: 0 }} 
+              onClick={onClose} 
+              className="fixed inset-0 bg-black/30 backdrop-blur-sm z-40" 
+            />
+            
+            {/* Drawer Panel */}
+            <motion.div 
+              initial={{ x: '100%' }} 
+              animate={{ x: 0 }} 
+              exit={{ x: '100%' }} 
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }} 
+              className="fixed inset-y-0 right-0 w-full max-w-2xl bg-white shadow-2xl z-50 flex flex-col border-l border-white/50"
+            >
+              
+              {/* Header */}
+              <div className="p-8 pb-4 border-b border-slate-100 flex justify-between items-start bg-white z-10">
+                <div className="flex-1 mr-8">
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider bg-slate-50 px-2 py-1 rounded-md border border-slate-100 flex items-center gap-1">
+                      <CheckSquare size={12}/> Åtgärd
+                    </span>
+                    {isDone && (
+                      <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider bg-emerald-50 px-2 py-1 rounded-md border border-emerald-100 flex items-center gap-1">
+                        <CheckCircle2 size={12}/> Klar
+                      </span>
+                    )}
+                  </div>
+                  
+                  {/* Editable Title */}
+                  <input 
+                    value={formData.title || ''} 
+                    onChange={(e) => handleChange('title', e.target.value)} 
+                    className="text-3xl font-bold text-slate-900 bg-transparent border-none p-0 focus:ring-0 w-full placeholder:text-slate-300 leading-tight" 
+                    placeholder="Rubrik..." 
+                  />
                 </div>
-              )}
-
-              {/* Easit Description */}
-              <div>
-                <label className="block text-sm font-bold text-slate-800 mb-2">Utförlig beskrivning (för Easit)</label>
-                <p className="text-xs text-slate-500 mb-2">Beskriv tekniska detaljer och vad som exakt ska göras.</p>
-                <textarea
-                  rows="6"
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  className="w-full p-4 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none"
-                  placeholder="Skriv teknisk specifikation här..."
-                />
-              </div>
-
-              {/* Internal Notes */}
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Interna noteringar</label>
-                <textarea
-                  rows="2"
-                  value={formData.notes}
-                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                  className="w-full p-3 rounded-lg border border-slate-200 focus:ring-2 focus:ring-slate-400 outline-none"
-                  placeholder="Egna minnesanteckningar..."
-                />
-              </div>
-            </div>
-
-            {/* Footer */}
-            <div className="p-6 border-t border-slate-100 bg-white flex justify-between items-center">
-              <button
-                onClick={handleSendToEasit}
-                disabled={easitMutation.isPending}
-                className="flex items-center gap-2 text-indigo-600 font-bold hover:bg-indigo-50 px-4 py-2 rounded-lg transition-colors disabled:opacity-50"
-              >
-                {easitMutation.isPending ? <Loader2 className="animate-spin" size={18} /> : <Send size={18} />}
-                Skicka till Easit
-              </button>
-
-              <div className="flex gap-3">
-                {/* Markera som klar knapp */}
-                {formData.status !== 'DONE' ? (
-                  <button
-                    onClick={() => {
-                      mutation.mutate({ id: action.id, data: { status: 'DONE' } });
-                    }}
-                    className="px-4 py-2 bg-emerald-100 text-emerald-800 font-bold rounded-xl hover:bg-emerald-200 flex items-center gap-2"
-                  >
-                    <CheckSquare size={18} /> Markera som klar
-                  </button>
-                ) : (
-                  <span className="flex items-center gap-2 text-emerald-600 font-bold px-4">
-                    <CheckSquare size={18} /> Åtgärd är klar
-                  </span>
-                )}
-
-                <button
-                  onClick={handleSave}
-                  disabled={mutation.isPending}
-                  className="px-6 py-2 bg-slate-900 text-white font-medium rounded-xl hover:bg-slate-800 shadow-lg transition-all flex items-center gap-2"
+                <button 
+                  onClick={onClose} 
+                  className="p-2 hover:bg-slate-100 rounded-full text-slate-400 transition-colors"
                 >
-                  {mutation.isPending ? <Loader2 className="animate-spin" size={20} /> : <Save size={20} />}
-                  Spara
+                  <X size={24} />
                 </button>
               </div>
-            </div>
-          </motion.div>
-        </>
-      )}
-      <FeedbackModal
-        isOpen={feedback.isOpen}
-        onClose={() => setFeedback({ ...feedback, isOpen: false })}
-        type={feedback.type}
-        title={feedback.title}
-        message={feedback.message}
-        details={feedback.details}
+
+              {/* Scrollable Content */}
+              <div className="flex-1 overflow-y-auto p-8 space-y-8 bg-slate-50/50">
+                
+                {/* --- ORIGIN POINT LINK (NYTT) --- */}
+                {action.point && (
+                  <div className="bg-blue-50/50 p-4 rounded-2xl border border-blue-100 flex items-start gap-3">
+                    <div className="mt-0.5 p-1.5 bg-blue-100 text-blue-600 rounded-lg shadow-sm">
+                      <Link2 size={16} />
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-blue-800 uppercase tracking-wider mb-0.5">
+                        Baserad på behov
+                      </p>
+                      <p className="text-slate-700 font-medium text-sm leading-snug">
+                        {action.point.title}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Status Card */}
+                <div className={clsx(
+                  "p-6 rounded-[1.5rem] border shadow-sm flex items-center justify-between transition-all",
+                  isDone ? "bg-emerald-50/50 border-emerald-100" : "bg-white border-slate-100"
+                )}>
+                  <div>
+                    <h3 className={clsx("font-bold text-lg", isDone ? "text-emerald-900" : "text-slate-800")}>Status</h3>
+                    <p className={clsx("text-sm", isDone ? "text-emerald-700" : "text-slate-500")}>
+                      {isDone ? "Åtgärden är markerad som genomförd." : "Arbete pågår eller väntar på start."}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => handleChange('status', isDone ? 'PENDING' : 'DONE')}
+                    className={clsx(
+                      "px-5 py-2.5 rounded-xl font-bold transition-all flex items-center gap-2 active:scale-95",
+                      isDone 
+                        ? "bg-white text-emerald-600 border border-emerald-200 hover:border-emerald-300 shadow-sm" 
+                        : "bg-slate-900 text-white hover:bg-slate-800 shadow-lg shadow-slate-200"
+                    )}
+                  >
+                    {isDone ? 'Öppna igen' : 'Markera som klar'}
+                  </button>
+                </div>
+
+                {/* Details Form */}
+                <div className="bg-white p-6 rounded-[1.5rem] border border-slate-100 shadow-sm space-y-6">
+                  
+                  {/* People & Dates */}
+                  <div className="grid grid-cols-2 gap-6">
+                    <div className="col-span-2">
+                      <label className="flex items-center gap-2 text-xs font-bold text-slate-400 uppercase mb-2">
+                        <User size={14}/> Ansvarig
+                      </label>
+                      <input 
+                        value={formData.assignedTo || ''} 
+                        onChange={(e) => handleChange('assignedTo', e.target.value)} 
+                        className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 font-medium text-slate-700" 
+                        placeholder="Vem gör jobbet?"
+                      />
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-2 text-xs font-bold text-slate-400 uppercase mb-2">
+                        <Calendar size={14}/> Startdatum
+                      </label>
+                      <input 
+                        type="date"
+                        value={formData.startDate || ''} 
+                        onChange={(e) => handleChange('startDate', e.target.value)} 
+                        className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 font-medium text-slate-700" 
+                      />
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-2 text-xs font-bold text-slate-400 uppercase mb-2">
+                        <Calendar size={14}/> Deadline
+                      </label>
+                      <input 
+                        type="date"
+                        value={formData.dueDate || ''} 
+                        onChange={(e) => handleChange('dueDate', e.target.value)} 
+                        className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 font-medium text-slate-700" 
+                      />
+                    </div>
+                  </div>
+
+                  {/* Description */}
+                  <div>
+                    <label className="flex items-center gap-2 text-xs font-bold text-slate-400 uppercase mb-2">
+                      <AlignLeft size={14}/> Beskrivning
+                    </label>
+                    <textarea 
+                      rows="4" 
+                      value={formData.description || ''} 
+                      onChange={(e) => handleChange('description', e.target.value)} 
+                      className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-medium text-slate-700 leading-relaxed resize-none" 
+                      placeholder="Vad ska göras?"
+                    />
+                  </div>
+
+                  {/* Notes */}
+                  <div>
+                    <label className="flex items-center gap-2 text-xs font-bold text-slate-400 uppercase mb-2">
+                      <FileText size={14}/> Egna Anteckningar
+                    </label>
+                    <textarea 
+                      rows="3" 
+                      value={formData.notes || ''} 
+                      onChange={(e) => handleChange('notes', e.target.value)} 
+                      className="w-full p-4 bg-amber-50/50 border border-amber-100 rounded-xl focus:bg-white focus:ring-2 focus:ring-amber-200 outline-none transition-all font-medium text-slate-700 leading-relaxed resize-none" 
+                      placeholder="Interna noteringar..."
+                    />
+                  </div>
+
+                </div>
+              </div>
+
+              {/* Footer Actions */}
+              <div className="p-6 border-t border-slate-100 bg-white z-10 shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.1)] flex justify-between items-center gap-4">
+                 
+                 <button 
+                   onClick={onClose} 
+                   className="px-6 py-3 text-slate-500 font-bold hover:bg-slate-50 rounded-xl transition-colors"
+                 >
+                   Avbryt
+                 </button>
+
+                 <div className="flex gap-3">
+                   {/* Easit Button - Endast om Klar */}
+                   {isDone && (
+                     <button 
+                       onClick={handleSendToEasit} 
+                       disabled={easitMutation.isPending}
+                       className="px-5 py-3 bg-indigo-50 text-indigo-700 font-bold rounded-xl hover:bg-indigo-100 transition-colors flex items-center gap-2 border border-indigo-100 disabled:opacity-50"
+                     >
+                       {easitMutation.isPending ? <Loader2 className="animate-spin" size={18}/> : <UploadCloud size={18}/>}
+                       <span className="hidden sm:inline">Skicka till Easit</span>
+                     </button>
+                   )}
+
+                   <button 
+                     onClick={handleSave} 
+                     disabled={mutation.isPending} 
+                     className="px-8 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition-all flex items-center gap-2 active:scale-95 disabled:opacity-70"
+                   >
+                     {mutation.isPending ? <Loader2 className="animate-spin" size={20} /> : <Save size={20} />} 
+                     Spara
+                   </button>
+                 </div>
+              </div>
+
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      <FeedbackModal 
+        isOpen={feedback.isOpen} 
+        onClose={() => setFeedback({ ...feedback, isOpen: false })} 
+        type={feedback.type} 
+        title={feedback.title} 
+        message={feedback.message} 
+        details={feedback.details} 
       />
-    </AnimatePresence>
+    </>
   );
 }
