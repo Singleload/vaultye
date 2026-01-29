@@ -2,8 +2,35 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Du kan lägga till egen CSS här under om du vill senare */
 body {
-  background-color: #f8fafc;
-  color: #1e293b;
+  background-color: #f8fafc; /* slate-50 */
+  color: #0f172a; /* slate-900 */
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Anpassad scrollbar för en premium känsla */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Ta bort standard outline och ersätt med vår egen via Tailwind classes (ring) */
+input:focus, 
+textarea:focus, 
+select:focus {
+  outline: none;
 }
