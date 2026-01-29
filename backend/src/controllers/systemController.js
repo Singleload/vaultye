@@ -4,11 +4,15 @@ const prisma = new PrismaClient();
 
 // Hämta alla system
 export const getSystems = async (req, res) => {
+  const { showArchived } = req.query; // Ta emot query param
+
   try {
+    const whereClause = showArchived === 'true' ? {} : { isArchived: false };
+
     const systems = await prisma.systemObject.findMany({
+      where: whereClause, // Filtrera bort arkiverade om vi inte ber om dem
       orderBy: { createdAt: 'desc' },
       include: {
-        // Vi vill räkna hur många öppna åtgärder som finns
         _count: {
           select: { points: { where: { status: { not: 'CLOSED' } } } }
         }
@@ -76,5 +80,35 @@ export const updateSystem = async (req, res) => {
     res.json(updated);
   } catch (error) {
     res.status(500).json({ error: 'Kunde inte uppdatera systemet' });
+  }
+};
+
+// Arkivera (Dölj) eller Avarkivera system
+export const toggleArchiveSystem = async (req, res) => {
+  const { id } = req.params;
+  const { isArchived } = req.body; // true eller false
+
+  try {
+    const updated = await prisma.systemObject.update({
+      where: { id },
+      data: { isArchived }
+    });
+    res.json(updated);
+  } catch (error) {
+    res.status(500).json({ error: 'Kunde inte ändra arkiv-status' });
+  }
+};
+
+// Radera system permanent (Cascade sköts av databasen nu)
+export const deleteSystem = async (req, res) => {
+  const { id } = req.params;
+  try {
+    await prisma.systemObject.delete({
+      where: { id }
+    });
+    res.status(204).send();
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Kunde inte radera systemet' });
   }
 };

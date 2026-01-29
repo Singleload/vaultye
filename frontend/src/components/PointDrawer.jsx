@@ -303,18 +303,18 @@ export default function PointDrawer({ point, isOpen, onClose }) {
                     <label className="block text-sm font-medium text-emerald-800 mb-1">Tilldela till (Ansvarig)</label>
                     <div className="relative">
                       <User size={16} className="absolute left-3 top-3 text-emerald-600" />
-                      <input disabled={isReadOnly} name="assignedTo" required className="w-full pl-10 p-2 rounded-lg border border-emerald-200 focus:ring-2 focus:ring-emerald-500 outline-none" placeholder="Namn på ansvarig" />
+                      <input name="assignedTo" required className="w-full pl-10 p-2 rounded-lg border border-emerald-200 focus:ring-2 focus:ring-emerald-500 outline-none" placeholder="Namn på ansvarig" />
                     </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-emerald-800 mb-1">Startdatum</label>
-                      <input disabled={isReadOnly} name="startDate" type="date" required className="w-full p-2 rounded-lg border border-emerald-200 focus:ring-2 focus:ring-emerald-500" />
+                      <input name="startDate" type="date" required className="w-full p-2 rounded-lg border border-emerald-200 focus:ring-2 focus:ring-emerald-500" />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-emerald-800 mb-1">Slutdatum</label>
-                      <input disabled={isReadOnly} name="dueDate" type="date" required className="w-full p-2 rounded-lg border border-emerald-200 focus:ring-2 focus:ring-emerald-500" />
+                      <input name="dueDate" type="date" required className="w-full p-2 rounded-lg border border-emerald-200 focus:ring-2 focus:ring-emerald-500" />
                     </div>
                   </div>
 

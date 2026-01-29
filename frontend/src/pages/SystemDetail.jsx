@@ -47,6 +47,10 @@ const sendUpgradeDecisionApi = async (id) => {
   return res.data;
 };
 
+const updateUpgradeApi = async ({ id, status }) => {
+  await axios.patch(`http://localhost:3000/api/upgrades/${id}`, { status });
+};
+
 // --- Sub-komponenter ---
 const TabButton = ({ active, onClick, children, icon: Icon }) => (
   <button
@@ -169,6 +173,7 @@ export default function SystemDetail() {
   const [selectedAction, setSelectedAction] = useState(null); // För ActionDrawer
   const [showRejected, setShowRejected] = useState(false); // För filtrering
   const [showAssessed, setShowAssessed] = useState(false); // För filtrering
+  const [isMeetingModalOpen, setIsMeetingModalOpen] = useState(false);
 
   // 1. Hämta System (inkl punkter och möten)
   const { data: system, isLoading, isError } = useQuery({
@@ -190,9 +195,25 @@ export default function SystemDetail() {
     mutationFn: createMeetingApi,
     onSuccess: (data) => {
       queryClient.invalidateQueries(['system', id]);
-      // Navigera direkt till det nya mötesrummet
+      setIsMeetingModalOpen(false);
+      // Navigera till mötet
       navigate(`/systems/${id}/meeting/${data.id}`);
     }
+  });
+
+  const handleCreateMeetingSubmit = (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    meetingMutation.mutate({
+      systemId: id,
+      title: fd.get('title'),
+      date: fd.get('date') // Backend hanterar datumsträngen
+    });
+  };
+
+  const updateUpgradeMutation = useMutation({
+    mutationFn: updateUpgradeApi,
+    onSuccess: () => queryClient.invalidateQueries(['system', id])
   });
 
   const handleCreatePoint = (e) => {
@@ -361,12 +382,11 @@ export default function SystemDetail() {
                   <p className="text-sm text-slate-500">Hantera resursgruppsmöten och protokoll.</p>
                 </div>
                 <button
-                  onClick={handleStartMeeting}
-                  disabled={meetingMutation.isPending}
-                  className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 shadow-sm transition-all active:scale-95 disabled:opacity-70"
+                  onClick={() => setIsMeetingModalOpen(true)} // <--- ÄNDRAT
+                  className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 shadow-sm"
                 >
-                  {meetingMutation.isPending ? <Loader2 className="animate-spin" size={16} /> : <Play size={16} />}
-                  Starta nytt möte nu
+                  <Calendar size={16} /> {/* Bytte ikon till Calendar för att det passar "Boka" bättre */}
+                  Boka / Starta möte
                 </button>
               </div>
 
@@ -426,15 +446,9 @@ export default function SystemDetail() {
                       </div>
                     </div>
 
-                    <div className="flex-1">
+                    <div className="flex-1 flex flex-col">
                       <div className="flex justify-between items-start">
                         <h4 className="font-bold text-slate-800 text-lg">{upg.title}</h4>
-                        <button
-                          onClick={() => { if (confirm('Radera?')) deleteUpgradeMutation.mutate(upg.id) }}
-                          className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
-                          <Trash2 size={18} />
-                        </button>
                       </div>
                       <p className="text-slate-600 text-sm mt-1">{upg.description}</p>
 
@@ -447,23 +461,62 @@ export default function SystemDetail() {
                             Kräver nertid
                           </span>
                         )}
-                        <span className={`px-2 py-1 rounded border ${upg.status === 'PLANNED' ? 'bg-blue-50 text-blue-700 border-blue-100' : 'bg-emerald-50 text-emerald-700'}`}>
-                          {upg.status === 'PLANNED' ? 'Planerad' : 'Genomförd'}
+                      </div>
+
+                      {/* ACTIONS FOOTER */}
+                      <div className="mt-4 pt-4 border-t border-slate-50 flex justify-between items-center">
+
+                        {/* Status Badge med Svensk Text & Rätt Färg */}
+                        <span className={`px-2 py-1 rounded text-xs font-bold border 
+                ${upg.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' :
+                            upg.status === 'PENDING_APPROVAL' ? 'bg-orange-100 text-orange-800 border-orange-200' :
+                              upg.status === 'DONE' ? 'bg-slate-100 text-slate-600 border-slate-200' :
+                                'bg-blue-50 text-blue-700 border-blue-100'}`}>
+                          {translateStatus(upg.status)}
                         </span>
+
+                        <div className="flex gap-2">
+                          {/* 1. BEGÄR GODKÄNNANDE (Endast om Planerad) */}
+                          {upg.status === 'PLANNED' && (
+                            <button
+                              onClick={() => {
+                                if (confirm('Skicka beslutsunderlag till systemägaren?')) {
+                                  upgradeDecisionMutation.mutate(upg.id);
+                                }
+                              }}
+                              className="text-xs bg-amber-100 text-amber-800 px-3 py-1.5 rounded-lg hover:bg-amber-200 font-medium flex items-center gap-1"
+                            >
+                              <Send size={12} /> Begär godkännande
+                            </button>
+                          )}
+
+                          {/* 2. MARKERA SOM GENOMFÖRD (Endast om Godkänd) */}
+                          {upg.status === 'APPROVED' && (
+                            <button
+                              onClick={() => {
+                                if (confirm('Är uppgraderingen genomförd och klar?')) {
+                                  updateUpgradeMutation.mutate({ id: upg.id, status: 'DONE' });
+                                }
+                              }}
+                              className="text-xs bg-emerald-100 text-emerald-800 px-3 py-1.5 rounded-lg hover:bg-emerald-200 font-medium flex items-center gap-1"
+                            >
+                              <CheckCircle2 size={12} /> Markera som genomförd
+                            </button>
+                          )}
+
+                          {/* 3. RADERA (Endast om Planerad - Skydda historiken) */}
+                          {upg.status === 'PLANNED' && (
+                            <button
+                              onClick={() => { if (confirm('Radera uppgradering?')) deleteUpgradeMutation.mutate(upg.id) }}
+                              className="text-slate-300 hover:text-red-500 transition-colors p-1"
+                              title="Radera"
+                            >
+                              <Trash2 size={18} />
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
-                    {upg.status === 'PLANNED' && (
-                      <button
-                        onClick={() => {
-                          if (confirm('Skicka beslutsunderlag till systemägaren?')) {
-                            upgradeDecisionMutation.mutate(upg.id);
-                          }
-                        }}
-                        className="text-xs bg-amber-100 text-amber-800 px-3 py-1.5 rounded-lg hover:bg-amber-200 font-medium flex items-center gap-1"
-                      >
-                        <Send size={12} /> Begär godkännande
-                      </button>
-                    )}
                   </div>
                 ))}
                 {system.upgrades?.length === 0 && <p className="text-slate-500 italic">Inga uppgraderingar registrerade.</p>}
@@ -676,6 +729,49 @@ export default function SystemDetail() {
                   <button type="button" onClick={() => setIsSettingsOpen(false)} className="px-4 py-2 text-slate-600 font-medium">Avbryt</button>
                   <button type="submit" className="px-6 py-2 bg-indigo-600 text-white font-medium rounded-lg flex items-center gap-2">
                     <Save size={18} /> Spara ändringar
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+        {isMeetingModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+              onClick={() => setIsMeetingModalOpen(false)}
+            />
+            <motion.div
+              initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }}
+              className="bg-white rounded-2xl shadow-xl w-full max-w-md relative z-10 p-6"
+            >
+              <h2 className="text-xl font-bold text-slate-800 mb-4">Boka Förvaltningsmöte</h2>
+              <form onSubmit={handleCreateMeetingSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Mötesnamn</label>
+                  <input
+                    name="title"
+                    required
+                    defaultValue="Förvaltningsmöte"
+                    className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Datum & Tid</label>
+                  <input
+                    name="date"
+                    type="datetime-local"
+                    required
+                    defaultValue={new Date().toISOString().slice(0, 16)} // Default till "nu"
+                    className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+                  />
+                </div>
+
+                <div className="flex justify-end gap-2 mt-6">
+                  <button type="button" onClick={() => setIsMeetingModalOpen(false)} className="px-4 py-2 text-slate-600 hover:bg-slate-50 rounded-lg">Avbryt</button>
+                  <button type="submit" className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 shadow-lg">
+                    Boka Möte
                   </button>
                 </div>
               </form>

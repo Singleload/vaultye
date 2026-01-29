@@ -17,18 +17,23 @@ model User {
 }
 
 model SystemObject {
-  id             String    @id @default(uuid())
-  name           String
-  description    String?
-  ownerName      String
-  ownerEmail     String
-  resourceGroup  String?
-  status         String    @default("ACTIVE")
-  meetings       Meeting[]
-  points         Point[]
-  upgrades       Upgrade[]
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  id            String    @id @default(uuid())
+  name          String
+  description   String?
+  ownerName     String
+  ownerEmail    String
+  resourceGroup String?
+  status        String    @default("ACTIVE")
+  
+  // NYTT FÄLT: För att kunna dölja systemet
+  isArchived    Boolean   @default(false)
+
+  meetings      Meeting[]
+  points        Point[]
+  upgrades      Upgrade[]
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 }
 
 model Meeting {
@@ -38,8 +43,11 @@ model Meeting {
   agenda      String?      @db.Text
   summary     String?      @db.Text
   attendees   String[]
+  
   systemId    String
-  system      SystemObject @relation(fields: [systemId], references: [id])
+  // UPPDATERAD: Cascade delete
+  system      SystemObject @relation(fields: [systemId], references: [id], onDelete: Cascade)
+  
   points      Point[]
   attachments Attachment[]
   createdAt   DateTime     @default(now())
@@ -61,10 +69,14 @@ model Point {
   decision       String?
   decisionDate   DateTime?
   decisionBy     String?
+  
   systemId       String
-  system         SystemObject  @relation(fields: [systemId], references: [id])
+  // UPPDATERAD: Cascade delete
+  system         SystemObject  @relation(fields: [systemId], references: [id], onDelete: Cascade)
+  
   meetingId      String?
   meeting        Meeting?      @relation(fields: [meetingId], references: [id])
+  
   action         Action?
   createdAt      DateTime      @default(now())
 }
@@ -81,8 +93,11 @@ model Upgrade {
   decision     String?
   decisionDate DateTime?
   attachments  Attachment[]
+  
   systemId     String
-  system       SystemObject @relation(fields: [systemId], references: [id])
+  // UPPDATERAD: Cascade delete
+  system       SystemObject @relation(fields: [systemId], references: [id], onDelete: Cascade)
+  
   createdAt    DateTime     @default(now())
 }
 
@@ -97,17 +112,20 @@ model MagicLink {
 }
 
 model Action {
-  id         String    @id @default(uuid())
-  title      String
-  description String?  @db.Text
-  assignedTo String?
-  startDate  DateTime?
-  dueDate    DateTime?
-  status     String    @default("PENDING")
-  notes      String?   @db.Text
-  pointId    String?   @unique
-  point      Point?    @relation(fields: [pointId], references: [id])
-  createdAt  DateTime  @default(now())
+  id          String    @id @default(uuid())
+  title       String
+  description String?   @db.Text
+  assignedTo  String?
+  startDate   DateTime?
+  dueDate     DateTime?
+  status      String    @default("PENDING")
+  notes       String?   @db.Text
+  
+  pointId     String?   @unique
+  // UPPDATERAD: Cascade delete (Om punkten raderas, raderas åtgärden)
+  point       Point?    @relation(fields: [pointId], references: [id], onDelete: Cascade)
+  
+  createdAt   DateTime  @default(now())
 }
 
 model Attachment {
@@ -115,9 +133,14 @@ model Attachment {
   filename  String
   path      String
   mimeType  String
+  
   meetingId String?
-  meeting   Meeting? @relation(fields: [meetingId], references: [id])
+  // UPPDATERAD: Cascade delete
+  meeting   Meeting? @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  
   upgradeId String?
-  upgrade   Upgrade? @relation(fields: [upgradeId], references: [id])
+  // UPPDATERAD: Cascade delete
+  upgrade   Upgrade? @relation(fields: [upgradeId], references: [id], onDelete: Cascade)
+  
   createdAt DateTime @default(now())
 }

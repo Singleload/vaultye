@@ -23,6 +23,20 @@ export const createUpgrade = async (req, res) => {
   }
 };
 
+export const updateUpgrade = async (req, res) => {
+  const { id } = req.params;
+  const { status } = req.body;
+  try {
+    const updated = await prisma.upgrade.update({
+      where: { id },
+      data: { status }
+    });
+    res.json(updated);
+  } catch (error) {
+    res.status(500).json({ error: 'Kunde inte uppdatera uppgradering' });
+  }
+};
+
 export const deleteUpgrade = async (req, res) => {
   const { id } = req.params;
   try {
